@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Ocorrência Fragment</title>
+    <link rel="stylesheet" th:href="@{/css/main.css}" />
+</head>
+<body>
+    <div th:fragment="ocorrenciaFragment(ocorrencia)">
+        <h3>Ocorrência Detalhes</h3>
+        <p><strong>Tipo:</strong> <span th:text="${ocorrencia.type}"></span></p>
+        <p><strong>Descrição:</strong> <span th:text="${ocorrencia.description}"></span></p>
+        <p><strong>Localização:</strong> <span th:text="${ocorrencia.location}"></span></p>
+        <p><strong>Status:</strong> <span th:text="${ocorrencia.status}"></span></p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Ocorrências Urbanas</title>
+    <link rel="stylesheet" th:href="@{/css/main.css}">
+</head>
+<body>
+    <div class="container">
+        <h1 th:text="${ocorrencia.id == null} ? 'Registrar Ocorrência' : 'Editar Ocorrência'"></h1>
+        <form th:action="@{/ocorrencias}" th:object="${ocorrencia}" method="post">
+            <div class="form-group">
+                <label for="type">Tipo de Ocorrência</label>
+                <select id="type" th:field="*{type}" class="form-control">
+                    <option value="POTHOLE">Buraco</option>
+                    <option value="BROKEN_LIGHT">Iluminação Quebrada</option>
+                    <option value="WASTE_ACCUMULATION">Acúmulo de Lixo</option>
+                    <option value="LEAK">Vazamento</option>
+                    <option value="DAMAGED_SIGNAGE">Placa Danificada</option>
+                    <option value="INFRASTRUCTURE_PROBLEM">Problema de Infraestrutura</option>
+                    <option value="THEFT">Furto</option>
+                    <option value="VANDALISM">Vandalismo</option>
+                    <option value="ABANDONED_ANIMALS">Animais Abandonados</option>
+                    <option value="DENGUE_HOTSPOT">Ponto Crítico de Dengue</option>
+                    <option value="ILLEGAL_WASTE_DISPOSAL">Descarte Irregular de Lixo</option>
+                    <option value="POLLUTION">Poluição</option>
+                    <option value="PUBLIC_SAFETY_RISK">Risco à Segurança Pública</option>
+                    <option value="ENVIRONMENTAL_ISSUE">Problema Ambiental</option>
+                    <option value="URBAN_RISK">Situação de Risco Urbano</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="description">Descrição</label>
+                <textarea id="description" th:field="*{description}" class="form-control" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="location">Localização</label>
+                <input type="text" id="location" th:field="*{location}" class="form-control" placeholder="Informe a localização">
+            </div>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+            <a th:href="@{/ocorrencias}" class="btn btn-secondary">Cancelar</a>
+        </form>
+    </div>
+    <script th:src="@{/js/main.js}"></script>
+</body>
+</html>
