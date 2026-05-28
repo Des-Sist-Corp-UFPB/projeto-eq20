@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eq20_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=eq20
+      - POSTGRES_PASSWORD=0rl0ajunSM4HFlUCC2Ha
+      - POSTGRES_DB=eq20
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    networks:
+      - eq20-network
+
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20-backend:latest}
+    container_name: eq20_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20
+      - SECRET_KEY=0rl0ajunSM4HFlUCC2Ha_SECRET_KEY_PROD
+    depends_on:
+      - postgres
+    networks:
+      - eq20-network
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20-frontend:latest}
+    container_name: eq20_frontend
+    restart: always
+    ports:
+      - "8120:80"
+    depends_on:
+      - backend
+    networks:
+      - eq20-network
+
+volumes:
+  pgdata_prod:
+
+networks:
+  eq20-network:
+    driver: bridge
