@@ -45,15 +45,6 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_FRONTEND }}
 
-      - name: Copia docker-compose.prod.yml para o servidor
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: dsc.rodrigor.com
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_DEPLOY_KEY }}
-          source: "docker-compose.prod.yml"
-          target: "~/"
-
       - name: Deploy no servidor
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -68,6 +59,57 @@ jobs:
             export BACKEND_IMAGE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-backend:latest"
             export FRONTEND_IMAGE="ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-frontend:latest"
             
+            # Create the docker-compose file on the server dynamically
+            cat << 'EOF' > ~/docker-compose.prod.yml
+            version: '3.8'
+
+            services:
+              postgres:
+                image: postgres:16-alpine
+                container_name: eq20_postgres
+                restart: always
+                environment:
+                  - POSTGRES_USER=eq20
+                  - POSTGRES_PASSWORD=0rl0ajunSM4HFlUCC2Ha
+                  - POSTGRES_DB=eq20
+                ports:
+                  - "5432:5432"
+                volumes:
+                  - pgdata_prod:/var/lib/postgresql/data
+                networks:
+                  - eq20-network
+
+              backend:
+                image: ${BACKEND_IMAGE}
+                container_name: eq20_backend
+                restart: always
+                environment:
+                  - DATABASE_URL=postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20
+                  - SECRET_KEY=0rl0ajunSM4HFlUCC2Ha_SECRET_KEY_PROD
+                depends_on:
+                  - postgres
+                networks:
+                  - eq20-network
+
+              frontend:
+                image: ${FRONTEND_IMAGE}
+                container_name: eq20_frontend
+                restart: always
+                ports:
+                  - "8120:80"
+                depends_on:
+                  - backend
+                networks:
+                  - eq20-network
+
+            volumes:
+              pgdata_prod:
+
+            networks:
+              eq20-network:
+                driver: bridge
+            EOF
+            
             # Pull new image tags
             docker compose -f ~/docker-compose.prod.yml pull
             
@@ -76,3 +118,4 @@ jobs:
             
             # Log out from registry to secure credentials
             docker logout ghcr.io
+
