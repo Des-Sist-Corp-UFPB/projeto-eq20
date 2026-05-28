@@ -55,8 +55,11 @@ jobs:
             # Log in to GitHub Container Registry using the session's temporary token
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Create the docker-compose file on the server dynamically
-            cat << 'EOF' > ~/docker-compose.prod.yml
+            # Create project directory to isolate from other projects on the server
+            mkdir -p ~/projeto-eq20
+            
+            # Create the docker-compose file dynamically in the project directory
+            cat << 'EOF' > ~/projeto-eq20/docker-compose.yml
             version: '3.8'
 
             services:
@@ -106,11 +109,15 @@ jobs:
                 driver: bridge
             EOF
             
-            # Pull new image tags
-            docker compose -f ~/docker-compose.prod.yml pull
+            # Stop and remove potentially conflicting containers from previous runs/other compose configs
+            docker stop eq20_backend eq20_frontend eq20_postgres 2>/dev/null || true
+            docker rm eq20_backend eq20_frontend eq20_postgres 2>/dev/null || true
             
-            # Restart modified services and clean up orphans
-            docker compose -f ~/docker-compose.prod.yml up -d --remove-orphans
+            # Pull new image tags under the explicit project name
+            docker compose -p eq20-prod -f ~/projeto-eq20/docker-compose.yml pull
+            
+            # Restart modified services and clean up orphans under the explicit project name
+            docker compose -p eq20-prod -f ~/projeto-eq20/docker-compose.yml up -d --remove-orphans
             
             # Log out from registry to secure credentials
             docker logout ghcr.io
