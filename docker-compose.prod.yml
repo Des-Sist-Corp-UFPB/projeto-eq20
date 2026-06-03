@@ -16,26 +16,17 @@ services:
     networks:
       - eq20-network
 
-  backend:
-    image: ${BACKEND_IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20-backend:latest}
-    container_name: eq20_backend
+  app:
+    image: ${IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20:latest}
+    container_name: eq20_app
     restart: always
+    ports:
+      - "127.0.0.1:8120:8080"
     environment:
       - DATABASE_URL=postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20
       - SECRET_KEY=0rl0ajunSM4HFlUCC2Ha_SECRET_KEY_PROD
     depends_on:
       - postgres
-    networks:
-      - eq20-network
-
-  frontend:
-    image: ${FRONTEND_IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20-frontend:latest}
-    container_name: eq20_frontend
-    restart: always
-    ports:
-      - "8120:80"
-    depends_on:
-      - backend
     networks:
       - eq20-network
 

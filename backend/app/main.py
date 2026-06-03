@@ -33,6 +33,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Endpoint público de health check
+from datetime import datetime, timezone
+@app.get("/ping")
+def ping():
+    return {
+        "status": "ok",
+        "service": "eq20",
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    }
+
 # Inclusão dos roteadores da API
 app.include_router(auth_router)
 app.include_router(ocorrencias_router)

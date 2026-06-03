@@ -24,6 +24,6 @@ COPY backend/ ./
 # Copy built frontend assets to the backend's static directory
 COPY --from=frontend-builder /app/dist ./static
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
