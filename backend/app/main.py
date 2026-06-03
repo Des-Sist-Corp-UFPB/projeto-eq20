@@ -37,3 +37,28 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(ocorrencias_router)
 app.include_router(admin_router)
+
+# Configuração para servir o frontend estático compilado (SPA) se existir
+import os
+from fastapi.responses import FileResponse
+
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static")
+if os.path.exists(static_dir):
+    @app.get("/{catchall:path}")
+    async def serve_spa(catchall: str):
+        if not catchall:
+            catchall = "index.html"
+            
+        # Proteção contra path traversal
+        resolved_path = os.path.abspath(os.path.join(static_dir, catchall))
+        if not resolved_path.startswith(os.path.abspath(static_dir)):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Forbidden")
+            
+        if os.path.isfile(resolved_path):
+            return FileResponse(resolved_path)
+            
+        index_file = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+
