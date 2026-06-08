@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 
 // Constants
-const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:8000/api' : '/api';
+const API_BASE_URL = '/api';
 
 const CATEGORIES_AND_TYPES = {
   "infraestrutura": ["buracos em ruas", "problemas de infraestrutura"],

@@ -26,6 +26,8 @@ class Settings:
     """Configurações da aplicação carregadas de variáveis de ambiente."""
 
     DATABASE_URL: str = os.getenv("DATABASE_URL", default_db_url)
+    DATABASE_POOL_SIZE: int = int(os.getenv("DATABASE_POOL_SIZE", "5"))
+    DATABASE_MAX_OVERFLOW: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "0"))
     SECRET_KEY: str = os.getenv("SECRET_KEY", default_secret_key)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
