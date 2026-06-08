@@ -33,7 +33,7 @@ def setup_db():
     db.add(FeatureToggleModel(key="read_only_mode", value=False))
     
     db.add(UserModel(
-        email="admin@urbanacare.com", 
+        email="admin@riou.com", 
         hashed_password=get_password_hash("admin123"), 
         role="admin"
     ))
@@ -156,7 +156,7 @@ def test_authorization_and_ban():
     # 1. Login as admin to manage users
     admin_login = client.post(
         "/api/auth/login",
-        data={"username": "admin@urbanacare.com", "password": "admin123"}
+        data={"username": "admin@riou.com", "password": "admin123"}
     )
     assert admin_login.status_code == 200
     admin_token = admin_login.json()["access_token"]

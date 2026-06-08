@@ -11,7 +11,7 @@ class Settings:
 
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:postgres@localhost:5432/urbanacare",
+        "postgresql://postgres:postgres@localhost:5432/riou",
     )
     SECRET_KEY: str = os.getenv(
         "SECRET_KEY",

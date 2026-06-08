@@ -3,12 +3,12 @@ version: '3.8'
 services:
   db:
     image: postgres:16-alpine
-    container_name: urbanacare_db
+    container_name: riou_db
     restart: always
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=urbanacare
+      - POSTGRES_DB=riou
     ports:
       - "5432:5432"
     volumes:
@@ -17,12 +17,12 @@ services:
   app:
     image: ghcr.io/des-sist-corp-ufpb/projeto-eq20:latest
     build: .
-    container_name: urbanacare_app
+    container_name: riou_app
     restart: always
     ports:
       - "127.0.0.1:8120:8080"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/urbanacare
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/riou
     depends_on:
       - db
 

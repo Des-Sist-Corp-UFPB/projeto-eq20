@@ -1,5 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import logoUrl from './assets/img/logo.PNG';
+import bannerUrl from './assets/img/banner.JPG';
+import iconUrl from './assets/img/icon.png';
 
 // Constants
 const API_BASE_URL = '/api';
@@ -163,10 +166,10 @@ onMounted(() => {
 
 // Check if credentials exist in localStorage
 function checkLocalAuth() {
-  const token = localStorage.getItem('urbanacare_token');
-  const email = localStorage.getItem('urbanacare_email');
-  const role = localStorage.getItem('urbanacare_role');
-  const id = localStorage.getItem('urbanacare_id');
+  const token = localStorage.getItem('riou_token');
+  const email = localStorage.getItem('riou_email');
+  const role = localStorage.getItem('riou_role');
+  const id = localStorage.getItem('riou_id');
   
   if (token && email && role && id) {
     authToken.value = token;
@@ -240,10 +243,10 @@ async function handleLogin() {
     const data = await res.json();
     
     // Save locally
-    localStorage.setItem('urbanacare_token', data.access_token);
-    localStorage.setItem('urbanacare_email', data.email);
-    localStorage.setItem('urbanacare_role', data.role);
-    localStorage.setItem('urbanacare_id', data.id);
+    localStorage.setItem('riou_token', data.access_token);
+    localStorage.setItem('riou_email', data.email);
+    localStorage.setItem('riou_role', data.role);
+    localStorage.setItem('riou_id', data.id);
 
     authToken.value = data.access_token;
     userEmail.value = data.email;
@@ -360,10 +363,10 @@ async function handleResetPassword() {
 }
 
 function handleLogout() {
-  localStorage.removeItem('urbanacare_token');
-  localStorage.removeItem('urbanacare_email');
-  localStorage.removeItem('urbanacare_role');
-  localStorage.removeItem('urbanacare_id');
+  localStorage.removeItem('riou_token');
+  localStorage.removeItem('riou_email');
+  localStorage.removeItem('riou_role');
+  localStorage.removeItem('riou_id');
   
   authToken.value = '';
   userEmail.value = '';
@@ -653,10 +656,10 @@ function initMap() {
         width: 38px;
         height: 38px;
         border-radius: 50%;
-        background: rgba(139, 92, 246, 0.2);
-        border: 2.5px dashed #8b5cf6;
+        background: rgba(128, 29, 42, 0.2);
+        border: 2.5px dashed #801d2a;
         font-size: 16px;
-      ">📍</div>`,
+      ">🔻</div>`,
       className: 'temp-marker-icon',
       iconSize: [38, 38],
       iconAnchor: [19, 19]
@@ -868,85 +871,87 @@ function formatDate(dateString) {
 <template>
   <!-- 1. LOGIN / AUTHENTICATION LAYER -->
   <div v-if="!isAuthenticated" class="auth-layer">
-    <div class="auth-box glass-card">
-      <div class="auth-logo">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="logo-icon"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-        <h2>UrbanaCare</h2>
+    <div class="auth-left">
+      <div class="auth-box glass-card">
+        <div class="auth-logo">
+          <img :src="logoUrl" alt="RIOU" class="auth-logo-img" />
+        </div>
+        <p class="auth-subtitle">Registro Inteligente de Ocorrências Urbanas</p>
+
+        <!-- Messages alerts -->
+        <div v-if="authMessage" class="auth-alert success">{{ authMessage }}</div>
+        <div v-if="authError" class="auth-alert error">{{ authError }}</div>
+
+        <!-- Mode 1: Login -->
+        <form v-if="authMode === 'login'" @submit.prevent="handleLogin">
+          <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" required v-model="inputEmail" placeholder="exemplo@gmail.com">
+          </div>
+          <div class="form-group">
+            <label>Senha</label>
+            <input type="password" required v-model="inputPassword" placeholder="******">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+          <div class="auth-links">
+            <a href="#" @click.prevent="authMode = 'register'">Criar Conta</a>
+            <a href="#" @click.prevent="authMode = 'forgot'">Esqueci a Senha</a>
+          </div>
+        </form>
+
+        <!-- Mode 2: Register -->
+        <form v-if="authMode === 'register'" @submit.prevent="handleRegister">
+          <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" required v-model="inputEmail" placeholder="exemplo@gmail.com">
+          </div>
+          <div class="form-group">
+            <label>Senha</label>
+            <input type="password" required v-model="inputPassword" placeholder="Mínimo 6 caracteres">
+          </div>
+          <div class="form-group">
+            <label>Confirmar Senha</label>
+            <input type="password" required v-model="inputConfirmPassword" placeholder="Repita a senha">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
+          <div class="auth-links">
+            <a href="#" @click.prevent="authMode = 'login'">Já tenho uma conta (Login)</a>
+          </div>
+        </form>
+
+        <!-- Mode 3: Forgot Password -->
+        <form v-if="authMode === 'forgot'" @submit.prevent="handleForgotPassword">
+          <div class="form-group">
+            <label>E-mail cadastrado</label>
+            <input type="email" required v-model="inputEmail" placeholder="exemplo@gmail.com">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Solicitar Código</button>
+          <div class="auth-links">
+            <a href="#" @click.prevent="authMode = 'login'">Voltar ao Login</a>
+          </div>
+        </form>
+
+        <!-- Mode 4: Reset Password -->
+        <form v-if="authMode === 'reset'" @submit.prevent="handleResetPassword">
+          <div class="alert-info-box" style="margin-bottom:12px; font-size:11px;">
+            <span>Copie o token gerado nos logs do container do Backend para concluir a redefinição.</span>
+          </div>
+          <div class="form-group">
+            <label>Token de Recuperação</label>
+            <input type="text" required v-model="resetToken" placeholder="reset-xxxxxx">
+          </div>
+          <div class="form-group">
+            <label>Nova Senha</label>
+            <input type="password" required v-model="resetPasswordVal" placeholder="Nova senha (mínimo 6)">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Salvar Nova Senha</button>
+          <div class="auth-links">
+            <a href="#" @click.prevent="authMode = 'login'">Cancelar e Voltar</a>
+          </div>
+        </form>
       </div>
-      <p class="auth-subtitle">Acesse o portal da sua cidade</p>
-
-      <!-- Messages alerts -->
-      <div v-if="authMessage" class="auth-alert success">{{ authMessage }}</div>
-      <div v-if="authError" class="auth-alert error">{{ authError }}</div>
-
-      <!-- Mode 1: Login -->
-      <form v-if="authMode === 'login'" @submit.prevent="handleLogin">
-        <div class="form-group">
-          <label>E-mail</label>
-          <input type="email" required v-model="inputEmail" placeholder="exemplo@gmail.com">
-        </div>
-        <div class="form-group">
-          <label>Senha</label>
-          <input type="password" required v-model="inputPassword" placeholder="******">
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
-        <div class="auth-links">
-          <a href="#" @click.prevent="authMode = 'register'">Criar Conta</a>
-          <a href="#" @click.prevent="authMode = 'forgot'">Esqueci a Senha</a>
-        </div>
-      </form>
-
-      <!-- Mode 2: Register -->
-      <form v-if="authMode === 'register'" @submit.prevent="handleRegister">
-        <div class="form-group">
-          <label>E-mail</label>
-          <input type="email" required v-model="inputEmail" placeholder="exemplo@gmail.com">
-        </div>
-        <div class="form-group">
-          <label>Senha</label>
-          <input type="password" required v-model="inputPassword" placeholder="Mínimo 6 caracteres">
-        </div>
-        <div class="form-group">
-          <label>Confirmar Senha</label>
-          <input type="password" required v-model="inputConfirmPassword" placeholder="Repita a senha">
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
-        <div class="auth-links">
-          <a href="#" @click.prevent="authMode = 'login'">Já tenho uma conta (Login)</a>
-        </div>
-      </form>
-
-      <!-- Mode 3: Forgot Password -->
-      <form v-if="authMode === 'forgot'" @submit.prevent="handleForgotPassword">
-        <div class="form-group">
-          <label>E-mail cadastrado</label>
-          <input type="email" required v-model="inputEmail" placeholder="exemplo@gmail.com">
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Solicitar Código</button>
-        <div class="auth-links">
-          <a href="#" @click.prevent="authMode = 'login'">Voltar ao Login</a>
-        </div>
-      </form>
-
-      <!-- Mode 4: Reset Password -->
-      <form v-if="authMode === 'reset'" @submit.prevent="handleResetPassword">
-        <div class="alert-info-box" style="margin-bottom:12px; font-size:11px;">
-          <span>Copie o token gerado nos logs do container do Backend para concluir a redefinição.</span>
-        </div>
-        <div class="form-group">
-          <label>Token de Recuperação</label>
-          <input type="text" required v-model="resetToken" placeholder="reset-xxxxxx">
-        </div>
-        <div class="form-group">
-          <label>Nova Senha</label>
-          <input type="password" required v-model="resetPasswordVal" placeholder="Nova senha (mínimo 6)">
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Salvar Nova Senha</button>
-        <div class="auth-links">
-          <a href="#" @click.prevent="authMode = 'login'">Cancelar e Voltar</a>
-        </div>
-      </form>
     </div>
+    <div class="auth-right"></div>
   </div>
 
   <!-- 2. CORE APPLICATION (authenticated) -->
@@ -956,8 +961,7 @@ function formatDate(dateString) {
     <aside class="sidebar">
       <header class="app-header">
         <div class="logo">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="logo-icon"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          <h1>UrbanaCare</h1>
+          <img :src="logoUrl" alt="RIOU" class="logo-img" />
         </div>
         <div class="user-meta-row">
           <span class="user-email-tag" :title="userEmail">{{ userEmail }}</span>
@@ -1242,7 +1246,7 @@ function formatDate(dateString) {
       </div>
       
       <footer class="sidebar-footer">
-        <span>© 2026 UrbanaCare. Todos os direitos reservados.</span>
+        <span>© 2026 RIOU. Todos os direitos reservados.</span>
       </footer>
     </aside>
 

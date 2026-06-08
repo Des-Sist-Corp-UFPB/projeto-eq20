@@ -19,8 +19,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="UrbanaCare API Pro",
-    description="API de Gerenciamento de Ocorrências com Autenticação e Admin Dashboard",
+    title="RIOU API Pro",
+    description="API de Registro Inteligente de Ocorrências Urbanas (RIOU)",
     lifespan=lifespan,
 )
 

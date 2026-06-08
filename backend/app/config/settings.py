@@ -12,7 +12,7 @@ is_docker = os.path.exists("/.dockerenv")
 default_db_url = (
     "postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20"
     if is_docker
-    else "postgresql://postgres:postgres@localhost:5432/urbanacare"
+    else "postgresql://postgres:postgres@localhost:5432/riou"
 )
 
 default_secret_key = (

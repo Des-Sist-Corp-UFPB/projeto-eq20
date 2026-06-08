@@ -2,9 +2,12 @@
 
 import time
 
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.config.settings import settings
 from app.database.session import engine, SessionLocal
 from app.models import Base, UserModel, OcorrenciaModel, FeatureToggleModel
 from app.security.password import get_password_hash
@@ -24,7 +27,7 @@ def seed_database(db: Session) -> None:
             db.add(FeatureToggleModel(key=k, value=v))
 
     # 2. Seed Admin and User
-    admin_email = "admin@urbanacare.com"
+    admin_email = "admin@riou.com"
     if not db.query(UserModel).filter(UserModel.email == admin_email).first():
         db.add(UserModel(
             email=admin_email,
@@ -97,6 +100,41 @@ def seed_database(db: Session) -> None:
         db.commit()
 
 
+def create_database_if_not_exists(database_url: str) -> None:
+    """Verifica se o banco de dados PostgreSQL existe e o cria caso necessário."""
+    if not database_url.startswith("postgresql"):
+        return
+
+    url = make_url(database_url)
+    db_name = url.database
+    if not db_name:
+        return
+
+    # Conecta ao banco padrão 'postgres' para verificar/criar o banco desejado
+    default_url = url.set(database="postgres")
+    temp_engine = create_engine(default_url, isolation_level="AUTOCOMMIT")
+    try:
+        with temp_engine.connect() as conn:
+            # Verifica se o banco de dados já existe
+            result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :dbname"), {"dbname": db_name})
+            exists = result.scalar()
+            if not exists:
+                print(f"Banco de dados '{db_name}' não existe. Tentando criar...")
+                conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+                print(f"Banco de dados '{db_name}' criado com sucesso!")
+            else:
+                print(f"Banco de dados '{db_name}' já existe.")
+    except Exception as e:
+        # Se for erro de conexão/indisponibilidade (como conexão recusada), relançamos para que o retry loop trate.
+        # Caso contrário (ex: falta de privilégios), apenas avisamos e deixamos seguir, pois o banco já pode estar criado.
+        err_msg = str(e).lower()
+        if any(msg in err_msg for msg in ["connection refused", "could not connect", "is not responding", "timeout"]):
+            raise e
+        print(f"Aviso ao verificar/criar banco de dados '{db_name}': {e}")
+    finally:
+        temp_engine.dispose()
+
+
 def init_db_with_retry() -> None:
     """Inicializa o banco de dados com lógica de retry para aguardar o PostgreSQL."""
     max_retries = 10
@@ -104,6 +142,10 @@ def init_db_with_retry() -> None:
     for attempt in range(1, max_retries + 1):
         try:
             print(f"Tentando conectar ao banco de dados... (Tentativa {attempt}/{max_retries})")
+            
+            # Garante que o banco de dados existe antes de tentar a conexão do engine
+            create_database_if_not_exists(settings.DATABASE_URL)
+            
             connection = engine.connect()
             connection.close()
             print("Conexão estabelecida com sucesso!")
@@ -113,7 +155,6 @@ def init_db_with_retry() -> None:
 
             # Executa migrações simples (adiciona coluna se necessário)
             try:
-                from sqlalchemy import text
                 with engine.begin() as conn:
                     if not str(engine.url).startswith("sqlite"):
                         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMP WITH TIME ZONE NULL;"))
