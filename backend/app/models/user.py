@@ -1,6 +1,6 @@
 """Modelo de usuário."""
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -16,5 +16,7 @@ class UserModel(Base):
     hashed_password = Column(String(200), nullable=False)
     role = Column(String(30), default="user", nullable=False)  # "user" or "admin"
     reset_token = Column(String(100), nullable=True)  # Mock reset token for password recovery
+    banned_until = Column(DateTime(timezone=True), nullable=True)
 
     ocorrencias = relationship("OcorrenciaModel", back_populates="owner")
+

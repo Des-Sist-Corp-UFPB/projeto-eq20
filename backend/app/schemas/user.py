@@ -1,5 +1,5 @@
-"""Schemas Pydantic de usuário e autenticação."""
-
+from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
@@ -25,6 +25,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     role: str
+    banned_until: Optional[datetime] = None
 
 
 class TokenResponse(BaseModel):
@@ -32,8 +33,15 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: str
+    id: int
     email: str
     role: str
+
+
+class BanUserRequest(BaseModel):
+    """Schema para requisição de banimento de usuário."""
+
+    duration_minutes: int
 
 
 class ForgotPasswordRequest(BaseModel):

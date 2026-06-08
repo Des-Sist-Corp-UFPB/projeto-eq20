@@ -1,5 +1,4 @@
-"""Repositório de acesso a dados de usuários."""
-
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -17,6 +16,10 @@ class UserRepository:
     def get_by_email(self, email: str) -> Optional[UserModel]:
         """Busca um usuário pelo e-mail."""
         return self.db.query(UserModel).filter(UserModel.email == email).first()
+
+    def get_by_id(self, user_id: int) -> Optional[UserModel]:
+        """Busca um usuário pelo ID."""
+        return self.db.query(UserModel).filter(UserModel.id == user_id).first()
 
     def create(self, email: str, password: str, role: str = "user") -> UserModel:
         """Cria um novo usuário no banco."""
@@ -40,6 +43,18 @@ class UserRepository:
         user.hashed_password = get_password_hash(new_password)
         user.reset_token = None
         self.db.commit()
+
+    def delete(self, user: UserModel) -> None:
+        """Exclui um usuário do banco."""
+        self.db.delete(user)
+        self.db.commit()
+
+    def update_ban(self, user: UserModel, banned_until: Optional[datetime]) -> UserModel:
+        """Atualiza o banimento de um usuário."""
+        user.banned_until = banned_until
+        self.db.commit()
+        self.db.refresh(user)
+        return user
 
     def list_all(self) -> list[UserModel]:
         """Lista todos os usuários ordenados por ID."""

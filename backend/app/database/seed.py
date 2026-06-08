@@ -111,6 +111,20 @@ def init_db_with_retry() -> None:
             # Create tables
             Base.metadata.create_all(bind=engine)
 
+            # Executa migrações simples (adiciona coluna se necessário)
+            try:
+                from sqlalchemy import text
+                with engine.begin() as conn:
+                    if not str(engine.url).startswith("sqlite"):
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMP WITH TIME ZONE NULL;"))
+                    else:
+                        try:
+                            conn.execute(text("ALTER TABLE users ADD COLUMN banned_until TIMESTAMP NULL;"))
+                        except Exception:
+                            pass  # Coluna já existe no SQLite
+            except Exception as e:
+                print(f"Erro na migração automática do banco de dados: {e}")
+
             # Seed default values
             with SessionLocal() as db_session:
                 seed_database(db_session)

@@ -150,3 +150,130 @@ def test_create_occurrence_validation():
         headers=headers
     )
     assert response.status_code == 422
+
+
+def test_authorization_and_ban():
+    # 1. Login as admin to manage users
+    admin_login = client.post(
+        "/api/auth/login",
+        data={"username": "admin@urbanacare.com", "password": "admin123"}
+    )
+    assert admin_login.status_code == 200
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 2. Get list of users and find standard user ID
+    users_resp = client.get("/api/admin/users", headers=admin_headers)
+    assert users_resp.status_code == 200
+    users = users_resp.json()
+    user_id = next(u["id"] for u in users if u["role"] == "user")
+
+    # 3. Create an occurrence as standard user
+    user_login = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    assert user_login.status_code == 200
+    user_data = user_login.json()
+    user_token = user_data["access_token"]
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+
+    # Create occurrence
+    occ_resp = client.post(
+        "/api/ocorrencias",
+        json={
+            "title": "Ocorrência do Cidadão",
+            "category": "infraestrutura",
+            "description": "Buraco na calçada",
+            "lat": -7.1355,
+            "lng": -34.8421,
+            "type": "buracos em ruas"
+        },
+        headers=user_headers
+    )
+    assert occ_resp.status_code == 201
+    occ_id = occ_resp.json()["id"]
+
+    # 4. Try to change status of occurrence as standard user (must FAIL - 403)
+    status_resp = client.patch(
+        f"/api/ocorrencias/{occ_id}/status",
+        json={"status": "progresso"},
+        headers=user_headers
+    )
+    assert status_resp.status_code == 403
+
+    # Change status as admin (must PASS)
+    status_resp = client.patch(
+        f"/api/ocorrencias/{occ_id}/status",
+        json={"status": "progresso"},
+        headers=admin_headers
+    )
+    assert status_resp.status_code == 200
+    assert status_resp.json()["status"] == "progresso"
+
+    # 5. Ban the user for 60 minutes
+    ban_resp = client.post(
+        f"/api/admin/users/{user_id}/ban",
+        json={"duration_minutes": 60},
+        headers=admin_headers
+    )
+    assert ban_resp.status_code == 200
+    assert ban_resp.json()["banned_until"] is not None
+
+    # Try to login as banned user (must FAIL - 403)
+    banned_login = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    assert banned_login.status_code == 403
+    assert "temporariamente banida" in banned_login.json()["detail"]
+
+    # Try to use banned user's existing token (must FAIL - 403)
+    banned_post = client.post(
+        "/api/ocorrencias",
+        json={
+            "title": "Buraco na via principal",
+            "category": "infraestrutura",
+            "description": "Buraco grande na rua principal",
+            "lat": -7.1355,
+            "lng": -34.8421,
+            "type": "buracos em ruas"
+        },
+        headers=user_headers
+    )
+    assert banned_post.status_code == 403
+
+    # Unban user
+    unban_resp = client.post(
+        f"/api/admin/users/{user_id}/ban",
+        json={"duration_minutes": 0},
+        headers=admin_headers
+    )
+    assert unban_resp.status_code == 200
+    assert unban_resp.json()["banned_until"] is None
+
+    # 6. Test delete occurrences permissions
+    # Another standard user cannot delete it
+    client.post(
+        "/api/auth/register",
+        json={"email": "outro@teste.com", "password": "outrasenha123"}
+    )
+    outro_login = client.post(
+        "/api/auth/login",
+        data={"username": "outro@teste.com", "password": "outrasenha123"}
+    )
+    outro_token = outro_login.json()["access_token"]
+    outro_headers = {"Authorization": f"Bearer {outro_token}"}
+
+    del_resp1 = client.delete(f"/api/ocorrencias/{occ_id}", headers=outro_headers)
+    assert del_resp1.status_code == 403
+
+    # The owner CAN delete it
+    re_login = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    re_token = re_login.json()["access_token"]
+    re_headers = {"Authorization": f"Bearer {re_token}"}
+    del_resp2 = client.delete(f"/api/ocorrencias/{occ_id}", headers=re_headers)
+    assert del_resp2.status_code == 204

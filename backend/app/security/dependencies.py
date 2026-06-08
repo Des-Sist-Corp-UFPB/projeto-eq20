@@ -34,6 +34,19 @@ def get_current_user(
     user = db.query(UserModel).filter(UserModel.email == email).first()
     if user is None:
         raise credentials_exception
+
+    if user.banned_until:
+        from datetime import datetime, UTC, timezone
+        banned_until = user.banned_until
+        if banned_until.tzinfo is None:
+            banned_until = banned_until.replace(tzinfo=timezone.utc)
+        if banned_until > datetime.now(UTC):
+            ban_str = banned_until.strftime("%d/%m/%Y %H:%M:%S")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Sua conta está temporariamente banida até {ban_str}.",
+            )
+
     return user
 
 

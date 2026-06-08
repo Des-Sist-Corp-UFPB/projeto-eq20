@@ -2,13 +2,13 @@
 
 from typing import List
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.models.user import UserModel
 from app.schemas.feature_toggle import ToggleResponse
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, BanUserRequest
 from app.security.dependencies import get_current_admin
 from app.services.admin_service import AdminService
 
@@ -51,3 +51,25 @@ def list_users(
 ):
     service = AdminService(db)
     return service.list_users()
+
+
+@router.post("/users/{user_id}/ban", response_model=UserResponse)
+def ban_user(
+    user_id: int,
+    req: BanUserRequest,
+    current_user: UserModel = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    service = AdminService(db)
+    return service.ban_user(user_id=user_id, duration_minutes=req.duration_minutes)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    current_user: UserModel = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    service = AdminService(db)
+    service.delete_user(user_id=user_id)
+    return None

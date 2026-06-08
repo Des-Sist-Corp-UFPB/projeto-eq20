@@ -24,5 +24,5 @@ class OcorrenciaModel(Base):
     type = Column(String(30), default="urbana", nullable=False)  # "urbana" or "pessoal"
     date = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     owner = relationship("UserModel", back_populates="ocorrencias")

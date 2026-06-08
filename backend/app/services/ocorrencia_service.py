@@ -92,11 +92,11 @@ class OcorrenciaService:
                 detail="Ocorrência não encontrada.",
             )
 
-        # Only the owner or an admin can update occurrence status
-        if db_ocorrencia.user_id != current_user.id and current_user.role != "admin":
+        # Only the admin can update occurrence status
+        if current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Sem permissões para alterar esta ocorrência.",
+                detail="Apenas o administrador pode alterar o estado de uma ocorrência.",
             )
 
         return self.ocorrencia_repo.update_status(db_ocorrencia, status_update.status)

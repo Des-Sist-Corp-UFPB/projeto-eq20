@@ -44,6 +44,18 @@ class AuthService:
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        if user.banned_until:
+            from datetime import datetime, UTC, timezone
+            banned_until = user.banned_until
+            if banned_until.tzinfo is None:
+                banned_until = banned_until.replace(tzinfo=timezone.utc)
+            if banned_until > datetime.now(UTC):
+                ban_str = banned_until.strftime("%d/%m/%Y %H:%M:%S")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Sua conta está temporariamente banida até {ban_str}.",
+                )
+
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": user.email},
@@ -53,6 +65,7 @@ class AuthService:
         return {
             "access_token": access_token,
             "token_type": "bearer",
+            "id": user.id,
             "email": user.email,
             "role": user.role,
         }

@@ -76,6 +76,7 @@ const isAuthenticated = ref(false);
 const authMode = ref('login'); // 'login', 'register', 'forgot', 'reset'
 const userEmail = ref('');
 const userRole = ref('');
+const userId = ref(null);
 const authToken = ref('');
 
 // Auth inputs
@@ -165,11 +166,13 @@ function checkLocalAuth() {
   const token = localStorage.getItem('urbanacare_token');
   const email = localStorage.getItem('urbanacare_email');
   const role = localStorage.getItem('urbanacare_role');
+  const id = localStorage.getItem('urbanacare_id');
   
-  if (token && email && role) {
+  if (token && email && role && id) {
     authToken.value = token;
     userEmail.value = email;
     userRole.value = role;
+    userId.value = parseInt(id, 10);
     isAuthenticated.value = true;
     
     // Init app
@@ -240,10 +243,12 @@ async function handleLogin() {
     localStorage.setItem('urbanacare_token', data.access_token);
     localStorage.setItem('urbanacare_email', data.email);
     localStorage.setItem('urbanacare_role', data.role);
+    localStorage.setItem('urbanacare_id', data.id);
 
     authToken.value = data.access_token;
     userEmail.value = data.email;
     userRole.value = data.role;
+    userId.value = data.id;
     isAuthenticated.value = true;
 
     // Reset login inputs
@@ -358,10 +363,12 @@ function handleLogout() {
   localStorage.removeItem('urbanacare_token');
   localStorage.removeItem('urbanacare_email');
   localStorage.removeItem('urbanacare_role');
+  localStorage.removeItem('urbanacare_id');
   
   authToken.value = '';
   userEmail.value = '';
   userRole.value = '';
+  userId.value = null;
   isAuthenticated.value = false;
   
   // Clean map
@@ -555,6 +562,61 @@ async function fetchUsersList() {
   }
 }
 
+async function banUser(userIdVal, durationMinutes) {
+  if (durationMinutes <= 0) return;
+  try {
+    const res = await apiFetch(`/admin/users/${userIdVal}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duration_minutes: durationMinutes })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Erro ao banir usuário.');
+    }
+    alert("Usuário banido com sucesso!");
+    fetchUsersList();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function unbanUser(userIdVal) {
+  if (!confirm("Deseja desbanir este usuário?")) return;
+  try {
+    const res = await apiFetch(`/admin/users/${userIdVal}/ban`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duration_minutes: 0 })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Erro ao desbanir usuário.');
+    }
+    alert("Usuário desbanido com sucesso!");
+    fetchUsersList();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteUserAccount(userIdVal) {
+  if (!confirm("Tem certeza que deseja excluir esta conta definitivamente? Todas as ocorrências deste usuário ficarão sem criador associado.")) return;
+  try {
+    const res = await apiFetch(`/admin/users/${userIdVal}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Erro ao excluir conta.');
+    }
+    alert("Conta excluída com sucesso!");
+    fetchUsersList();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 // --- MAP & MARKERS ---
 
 function initMap() {
@@ -666,6 +728,26 @@ function createPopupContent(item) {
   const typeText = TYPE_NAMES[item.type] ? TYPE_NAMES[item.type].split(' ').slice(1).join(' ') : item.type;
   const typeBadge = `<span style="${badgeStyle} font-size:9px; padding: 2px 6px; border-radius:4px; margin-left:6px; font-weight:700; text-transform:uppercase;">${typeText}</span>`;
   
+  const showDelete = userRole.value === 'admin' || (item.user_id === userId.value);
+  const deleteBtn = showDelete ? `
+    <button class="btn-delete" onclick="window.deleteOccurrence(${item.id})">
+      Excluir
+    </button>
+  ` : '';
+  
+  const showStatusSelect = userRole.value === 'admin';
+  const statusHtml = showStatusSelect ? `
+    <select onchange="window.updateOccurrenceStatus(${item.id}, this.value)">
+      <option value="pendente" ${item.status === 'pendente' ? 'selected' : ''}>Pendente</option>
+      <option value="progresso" ${item.status === 'progresso' ? 'selected' : ''}>Em Curso</option>
+      <option value="resolvido" ${item.status === 'resolvido' ? 'selected' : ''}>Resolvido</option>
+    </select>
+  ` : `
+    <span style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase; padding: 4px 8px; background:rgba(255,255,255,0.05); border-radius:4px;">
+      ${item.status === 'pendente' ? 'Pendente' : item.status === 'progresso' ? 'Em Curso' : 'Resolvido'}
+    </span>
+  `;
+
   return `
     <div class="map-popup-card">
       <div class="map-popup-header">
@@ -678,14 +760,8 @@ function createPopupContent(item) {
         <p style="margin-top: 4px; color: #94a3b8;">${item.description}</p>
       </div>
       <div class="map-popup-actions">
-        <select onchange="window.updateOccurrenceStatus(${item.id}, this.value)">
-          <option value="pendente" ${item.status === 'pendente' ? 'selected' : ''}>Pendente</option>
-          <option value="progresso" ${item.status === 'progresso' ? 'selected' : ''}>Em Curso</option>
-          <option value="resolvido" ${item.status === 'resolvido' ? 'selected' : ''}>Resolvido</option>
-        </select>
-        <button class="btn-delete" onclick="window.deleteOccurrence(${item.id})">
-          Excluir
-        </button>
+        ${statusHtml}
+        ${deleteBtn}
       </div>
     </div>
   `;
@@ -896,7 +972,7 @@ function formatDate(dateString) {
       </div>
 
       <!-- System Stats -->
-      <section class="stats-grid">
+      <section v-if="userRole === 'admin'" class="stats-grid">
         <div class="stat-card total">
           <span class="stat-value">{{ totalCount }}</span>
           <span class="stat-label">Total</span>
@@ -1127,13 +1203,37 @@ function formatDate(dateString) {
             <h3 class="admin-title">Usuários Cadastrados ({{ adminUsersList.length }})</h3>
             <div class="admin-users-list">
               <div v-for="u in adminUsersList" :key="u.id" class="admin-user-card">
-                <div style="display:flex; flex-direction:column;">
+                <div style="display:flex; flex-direction:column; flex: 1;">
                   <span class="admin-user-email">{{ u.email }}</span>
-                  <span class="admin-user-id">ID do Banco: #{{ u.id }}</span>
+                  <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+                    <span class="admin-user-id">ID: #{{ u.id }}</span>
+                    <span v-if="u.banned_until && new Date(u.banned_until) > new Date()" class="ban-tag">
+                      Banido até {{ new Date(u.banned_until).toLocaleString('pt-BR') }}
+                    </span>
+                  </div>
                 </div>
-                <span class="admin-badge" :class="u.role === 'admin' ? 'admin-pill' : 'user-pill'">
-                  {{ u.role }}
-                </span>
+                <div class="admin-user-actions">
+                  <span class="admin-badge" :class="u.role === 'admin' ? 'admin-pill' : 'user-pill'" style="margin-right: 8px;">
+                    {{ u.role }}
+                  </span>
+                  <template v-if="u.role !== 'admin'">
+                    <button v-if="u.banned_until && new Date(u.banned_until) > new Date()" class="btn-action unban" @click="unbanUser(u.id)">
+                      Desbanir
+                    </button>
+                    <div v-else class="ban-select-wrapper">
+                      <select class="ban-select" @change="e => { if(e.target.value) { banUser(u.id, parseInt(e.target.value)); e.target.value = ''; } }">
+                        <option value="">Banir...</option>
+                        <option value="5">5 min</option>
+                        <option value="60">1 hora</option>
+                        <option value="1440">1 dia</option>
+                        <option value="10080">1 semana</option>
+                      </select>
+                    </div>
+                    <button class="btn-action delete" @click="deleteUserAccount(u.id)">
+                      Excluir
+                    </button>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -1169,5 +1269,60 @@ function formatDate(dateString) {
 @keyframes markerEntry {
   from { transform: scale(0); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
+}
+
+.admin-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ban-tag {
+  font-size: 10px;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+.btn-action {
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+.btn-action.unban {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.btn-action.unban:hover {
+  background: rgba(16, 185, 129, 0.3);
+}
+.btn-action.delete {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.btn-action.delete:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+.ban-select-wrapper {
+  position: relative;
+}
+.ban-select {
+  padding: 4px 6px;
+  font-size: 11px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+.ban-select:focus {
+  border-color: var(--color-primary);
 }
 </style>
