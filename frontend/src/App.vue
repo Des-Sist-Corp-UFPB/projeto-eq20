@@ -902,10 +902,7 @@ function formatDate(dateString) {
   <div v-if="!isAuthenticated" class="auth-layer">
     <div class="auth-left">
       <div class="auth-box glass-card">
-        <div class="auth-logo">
-          <img :src="logoUrl" alt="RIOU" class="auth-logo-img" />
-        </div>
-        <p class="auth-subtitle">Registro Inteligente de Ocorrências Urbanas</p>
+        <h2 class="auth-form-title">Registro Inteligente de Ocorrências Urbanas</h2>
 
         <!-- Messages alerts -->
         <div v-if="authMessage" class="auth-alert success">{{ authMessage }}</div>
@@ -990,7 +987,9 @@ function formatDate(dateString) {
     <aside class="sidebar">
       <header class="app-header">
         <div class="logo">
-          <img :src="logoUrl" alt="RIOU" class="logo-img" />
+          <div class="logo-bg">
+            <img :src="logoUrl" alt="RIOU" class="logo-img" />
+          </div>
         </div>
         <div class="user-meta-row">
           <span class="user-email-tag" :title="userEmail">{{ userEmail }}</span>
