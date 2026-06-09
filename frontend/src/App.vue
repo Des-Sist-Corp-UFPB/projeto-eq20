@@ -106,6 +106,8 @@ const formTitle = ref('');
 const formDescription = ref('');
 const formPhoto = ref('');
 const formType = ref('');
+const isUploading = ref(false);
+
 
 // Map State
 let map = null;
@@ -861,6 +863,33 @@ function generateMockPhoto() {
   formPhoto.value = `${PHOTO_TEMPLATES[formCategory.value]}&sig=${randomSeed}`;
 }
 
+async function onFileChange(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  isUploading.value = true;
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await apiFetch('/ocorrencias/upload', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.detail || 'Falha no upload da imagem.');
+    }
+    const data = await res.json();
+    formPhoto.value = data.url;
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    isUploading.value = false;
+  }
+}
+
+
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('pt-BR', {
     day: '2-digit', month: '2-digit'
@@ -1139,16 +1168,41 @@ function formatDate(dateString) {
             </div>
 
             <div class="form-group">
-              <label>URL da Imagem / Foto (Opcional)</label>
-              <div class="photo-input-wrapper">
-                <input type="url" v-model="formPhoto" placeholder="https://exemplo.com/foto.jpg">
-                <button v-if="toggles.allow_mock_photos" type="button" class="btn btn-secondary btn-small" @click="generateMockPhoto">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  Gerar Mock
-                </button>
+              <label>Foto da Ocorrência</label>
+              
+              <!-- Container de Upload com Design Premium Glass/Glow -->
+              <div class="upload-container" :class="{ 'has-photo': formPhoto }">
+                <div v-if="isUploading" class="upload-spinner-wrapper">
+                  <div class="spinner"></div>
+                  <span class="upload-text">Enviando imagem...</span>
+                </div>
+                <div v-else-if="formPhoto" class="photo-preview-wrapper">
+                  <img :src="formPhoto" alt="Preview da ocorrência" class="photo-preview" />
+                  <button type="button" class="btn-remove-photo" @click="formPhoto = ''" title="Remover Foto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <label v-else class="upload-dropzone">
+                  <input type="file" @change="onFileChange" accept="image/*" class="file-input-hidden" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span class="upload-text">Clique para enviar uma foto</span>
+                  <span class="upload-subtext">JPG, PNG, WEBP ou GIF</span>
+                </label>
               </div>
-              <span class="input-tip">Adicione uma foto ou clique no botão para usar um mock automático da categoria.</span>
+
+              <!-- URL Input Toggle -->
+              <div class="url-input-toggle-wrapper">
+                <label class="url-label-toggle">Ou digite uma URL / use Foto Mock:</label>
+                <div class="photo-input-wrapper">
+                  <input type="url" v-model="formPhoto" placeholder="https://exemplo.com/foto.jpg">
+                  <button v-if="toggles.allow_mock_photos" type="button" class="btn btn-secondary btn-small" @click="generateMockPhoto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Gerar Mock
+                  </button>
+                </div>
+              </div>
             </div>
+
 
             <div class="form-actions">
               <button type="button" class="btn btn-ghost" @click="switchTab('list')">Cancelar</button>
@@ -1329,4 +1383,136 @@ function formatDate(dateString) {
 .ban-select:focus {
   border-color: var(--color-primary);
 }
+
+/* Custom upload & premium styling */
+.upload-container {
+  border: 1.5px dashed var(--border-color);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  position: relative;
+  overflow: hidden;
+  transition: var(--transition-smooth);
+}
+
+.upload-container:hover {
+  border-color: var(--color-primary);
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.upload-container.has-photo {
+  border-style: solid;
+  border-color: var(--border-color);
+}
+
+.upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.upload-icon {
+  color: var(--text-muted);
+  transition: var(--transition-smooth);
+}
+
+.upload-dropzone:hover .upload-icon {
+  color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.upload-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.upload-subtext {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.upload-spinner-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(139, 92, 246, 0.2);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.photo-preview-wrapper {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  background: #000;
+}
+
+.photo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-remove-photo {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--border-color);
+  color: #f87171;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.btn-remove-photo:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.url-input-toggle-wrapper {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.url-label-toggle {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
 </style>
+

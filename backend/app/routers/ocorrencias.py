@@ -2,8 +2,11 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, File, UploadFile
+import uuid
+import os
 from sqlalchemy.orm import Session
+
 
 from app.database.session import get_db
 from app.models.user import UserModel
@@ -58,3 +61,49 @@ def delete_ocorrencia(
     service = OcorrenciaService(db)
     service.delete_ocorrencia(ocorrencia_id=ocorrencia_id, current_user=current_user)
     return None
+
+
+@router.post("/upload")
+async def upload_photo(
+    file: UploadFile = File(...),
+    current_user: UserModel = Depends(get_current_user),
+):
+    """Realiza o upload de uma foto de ocorrência para o S3/MinIO."""
+    if not file.content_type.startswith("image/"):
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O arquivo enviado deve ser uma imagem.",
+        )
+        
+    file_ext = os.path.splitext(file.filename)[1]
+    if not file_ext:
+        if file.content_type == "image/jpeg":
+            file_ext = ".jpg"
+        elif file.content_type == "image/png":
+            file_ext = ".png"
+        elif file.content_type == "image/gif":
+            file_ext = ".gif"
+        elif file.content_type == "image/webp":
+            file_ext = ".webp"
+        else:
+            file_ext = ".jpg"
+            
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    
+    try:
+        from app.services.storage_service import upload_file_to_s3
+        content = await file.read()
+        public_url = upload_file_to_s3(
+            file_content=content,
+            file_name=unique_filename,
+            content_type=file.content_type
+        )
+        return {"url": public_url}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Falha ao realizar upload para o Object Storage: {str(e)}"
+        )
+

@@ -15,7 +15,14 @@ from app.routers.ocorrencias import router as ocorrencias_router
 async def lifespan(app: FastAPI):
     # Inicializa banco de dados com retry na inicialização
     init_db_with_retry()
+    # Inicializa o S3/MinIO
+    try:
+        from app.services.storage_service import init_s3
+        init_s3()
+    except Exception as e:
+        print(f"Erro ao inicializar S3 no startup: {e}")
     yield
+
 
 
 app = FastAPI(

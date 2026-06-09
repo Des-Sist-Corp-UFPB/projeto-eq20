@@ -277,3 +277,31 @@ def test_authorization_and_ban():
     re_headers = {"Authorization": f"Bearer {re_token}"}
     del_resp2 = client.delete(f"/api/ocorrencias/{occ_id}", headers=re_headers)
     assert del_resp2.status_code == 204
+
+
+def test_upload_file(monkeypatch):
+    mock_url = "https://s3.dsc.rodrigor.com/eq20/mocked_image.png"
+    def mock_upload(file_content, file_name, content_type):
+        return mock_url
+
+    import app.services.storage_service
+    monkeypatch.setattr(app.services.storage_service, "upload_file_to_s3", mock_upload)
+
+    # Login to get token
+    login_response = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    token = login_response.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Post multipart file
+    file_payload = {"file": ("test_image.png", b"fake image content", "image/png")}
+    response = client.post(
+        "/api/ocorrencias/upload",
+        files=file_payload,
+        headers=headers
+    )
+    assert response.status_code == 200
+    assert response.json()["url"] == mock_url
+

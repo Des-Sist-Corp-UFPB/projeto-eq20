@@ -21,6 +21,12 @@ default_secret_key = (
     else "SUPER_SECRET_KEY_CHANGEME_IN_PRODUCTION_2026"
 )
 
+default_s3_endpoint = (
+    "http://minio:9000"
+    if is_docker
+    else "https://s3.dsc.rodrigor.com"
+)
+
 
 class Settings:
     """Configurações da aplicação carregadas de variáveis de ambiente."""
@@ -32,5 +38,14 @@ class Settings:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
 
+    # Configurações do Object Storage (S3 / MinIO)
+    S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL", default_s3_endpoint)
+    S3_PUBLIC_ENDPOINT: str = os.getenv("S3_PUBLIC_ENDPOINT", "https://s3.dsc.rodrigor.com")
+    S3_BUCKET: str = os.getenv("S3_BUCKET", "eq20")
+    S3_ACCESS_KEY: str = os.getenv("S3_ACCESS_KEY", "eq20")
+    S3_SECRET_KEY: str = os.getenv("S3_SECRET_KEY", "2qMwQDKJ9je55RVcK0YIkd2A")
+    S3_REGION: str = os.getenv("S3_REGION", "us-east-1")
+
 
 settings = Settings()
+
