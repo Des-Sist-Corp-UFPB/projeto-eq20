@@ -753,6 +753,14 @@ function createPopupContent(item) {
     </span>
   `;
 
+  const showAdminStats = userRole.value === 'admin';
+  const adminStatsHtml = showAdminStats ? `
+    <div style="margin-top: 8px; font-size: 11px; color: #94a3b8; display: flex; gap: 12px; background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.06);">
+      <span>👥 <strong>${item.affected_count || 0}</strong> afetados</span>
+      <span style="color: #fb923c;">🔥 Urgência: <strong>${item.urgency_score !== null ? item.urgency_score.toFixed(1) : '0.0'}</strong></span>
+    </div>
+  ` : '';
+
   return `
     <div class="map-popup-card">
       <div class="map-popup-header">
@@ -762,7 +770,8 @@ function createPopupContent(item) {
       <div class="map-popup-desc">
         <strong style="color: #cbd5e1;">Categoria:</strong> ${CATEGORY_NAMES[item.category] || item.category}<br>
         <strong style="color: #cbd5e1;">Reportado em:</strong> ${dateFormatted}<br>
-        <p style="margin-top: 4px; color: #94a3b8;">${item.description}</p>
+        <p style="margin-top: 4px; color: #94a3b8; margin-bottom: 6px;">${item.description}</p>
+        ${adminStatsHtml}
       </div>
       <div class="map-popup-actions">
         ${statusHtml}
@@ -894,6 +903,31 @@ function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('pt-BR', {
     day: '2-digit', month: '2-digit'
   });
+}
+
+async function toggleAfetado(id) {
+  try {
+    const res = await apiFetch(`/ocorrencias/${id}/toggle-afetado`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Erro ao declarar afetado.');
+    }
+    const updatedRecord = await res.json();
+    
+    const index = occurrences.value.findIndex(o => o.id === id);
+    if (index !== -1) {
+      occurrences.value[index] = updatedRecord;
+    }
+    
+    if (userRole.value === 'admin') {
+      occurrences.value.sort((a, b) => (b.urgency_score || 0) - (a.urgency_score || 0));
+    }
+    
+  } catch (err) {
+    alert(err.message);
+  }
 }
 </script>
 
@@ -1105,6 +1139,32 @@ function formatDate(dateString) {
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                   {{ formatDate(item.date) }}
                 </span>
+              </div>
+
+              <!-- Botão Sou Afetado e Estatísticas Administrativas -->
+              <div class="card-actions-row" @click.stop>
+                <button 
+                  v-if="item.user_id !== userId"
+                  @click.stop="toggleAfetado(item.id)"
+                  class="btn-afetado"
+                  :class="{ active: item.is_affected }"
+                >
+                  <svg v-if="item.is_affected" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  {{ item.is_affected ? 'Declarado Afetado' : 'Sou Afetado' }}
+                </button>
+                <span v-else class="owner-badge">
+                  Criada por você
+                </span>
+
+                <div v-if="userRole === 'admin'" class="admin-stats-row">
+                  <span class="admin-stat-item" title="Pessoas afetadas">
+                    👥 {{ item.affected_count || 0 }}
+                  </span>
+                  <span class="admin-stat-item priority" title="Pontuação de urgência">
+                    🔥 {{ item.urgency_score !== null ? item.urgency_score.toFixed(1) : '0.0' }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1332,6 +1392,88 @@ function formatDate(dateString) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Estilos customizados para o botão 'Sou Afetado' e estatísticas de urgência */
+.card-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-afetado {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(139, 92, 246, 0.05);
+  color: #a78bfa;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.btn-afetado:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: #a78bfa;
+  color: #c084fc;
+  transform: translateY(-1px);
+}
+
+.btn-afetado.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.btn-afetado.active:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #34d399;
+  color: #6ee7b7;
+}
+
+.owner-badge {
+  font-family: var(--font-primary);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-stats-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-stat-item {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-primary);
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-stat-item.priority {
+  color: #fb923c;
+  background: rgba(251, 146, 60, 0.08);
+  border-color: rgba(251, 146, 60, 0.2);
 }
 .ban-tag {
   font-size: 10px;

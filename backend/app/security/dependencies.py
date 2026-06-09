@@ -60,3 +60,38 @@ def get_current_admin(
             detail="Ação restrita a administradores",
         )
     return current_user
+
+
+from typing import Optional
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+
+def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme_optional),
+    db: Session = Depends(get_db),
+) -> Optional[UserModel]:
+    """Dependency opcional que retorna o usuário autenticado a partir do token JWT se fornecido."""
+    if not token:
+        return None
+    try:
+        payload = pyjwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+    except pyjwt.PyJWTError:
+        return None
+
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if user is None:
+        return None
+
+    if user.banned_until:
+        from datetime import datetime, UTC, timezone
+        banned_until = user.banned_until
+        if banned_until.tzinfo is None:
+            banned_until = banned_until.replace(tzinfo=timezone.utc)
+        if banned_until > datetime.now(UTC):
+            return None
+
+    return user
+

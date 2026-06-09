@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.models.user import UserModel
 from app.schemas.ocorrencia import OcorrenciaCreate, OcorrenciaResponse, OcorrenciaStatusUpdate
-from app.security.dependencies import get_current_user
+from app.security.dependencies import get_current_user, get_current_user_optional
 from app.services.ocorrencia_service import OcorrenciaService
 
 router = APIRouter(prefix="/api/ocorrencias", tags=["ocorrencias"])
@@ -21,10 +21,12 @@ router = APIRouter(prefix="/api/ocorrencias", tags=["ocorrencias"])
 def list_ocorrencias(
     category: Optional[str] = None,
     status: Optional[str] = None,
+    current_user: Optional[UserModel] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     service = OcorrenciaService(db)
-    return service.list_ocorrencias(category=category, status_filter=status)
+    return service.list_ocorrencias(category=category, status_filter=status, current_user=current_user)
+
 
 
 @router.post("", response_model=OcorrenciaResponse, status_code=status.HTTP_201_CREATED)
@@ -106,4 +108,15 @@ async def upload_photo(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Falha ao realizar upload para o Object Storage: {str(e)}"
         )
+
+
+@router.post("/{ocorrencia_id}/toggle-afetado", response_model=OcorrenciaResponse)
+def toggle_afetado(
+    ocorrencia_id: int,
+    current_user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = OcorrenciaService(db)
+    return service.toggle_afetado(ocorrencia_id=ocorrencia_id, current_user=current_user)
+
 

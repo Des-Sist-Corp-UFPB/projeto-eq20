@@ -3,7 +3,7 @@
 from datetime import datetime, UTC
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.ocorrencia import OcorrenciaModel
 
@@ -20,8 +20,8 @@ class OcorrenciaRepository:
         status: Optional[str] = None,
         exclude_category: Optional[str] = None,
     ) -> list[OcorrenciaModel]:
-        """Lista ocorrências com filtros opcionais."""
-        query = self.db.query(OcorrenciaModel)
+        """Lista ocorrências com filtros opcionais, pré-carregando a relação de afetados."""
+        query = self.db.query(OcorrenciaModel).options(joinedload(OcorrenciaModel.afetados))
 
         if category:
             query = query.filter(OcorrenciaModel.category == category)
@@ -33,8 +33,14 @@ class OcorrenciaRepository:
         return query.order_by(OcorrenciaModel.date.desc()).all()
 
     def get_by_id(self, ocorrencia_id: int) -> Optional[OcorrenciaModel]:
-        """Busca uma ocorrência pelo ID."""
-        return self.db.query(OcorrenciaModel).filter(OcorrenciaModel.id == ocorrencia_id).first()
+        """Busca uma ocorrência pelo ID, pré-carregando a relação de afetados."""
+        return (
+            self.db.query(OcorrenciaModel)
+            .options(joinedload(OcorrenciaModel.afetados))
+            .filter(OcorrenciaModel.id == ocorrencia_id)
+            .first()
+        )
+
 
     def create(
         self,

@@ -305,3 +305,121 @@ def test_upload_file(monkeypatch):
     assert response.status_code == 200
     assert response.json()["url"] == mock_url
 
+
+def test_occurrence_prioritization_and_affected():
+    # 1. Login Creator (cidadao)
+    login_resp = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    creator_token = login_resp.json()["access_token"]
+    creator_headers = {"Authorization": f"Bearer {creator_token}"}
+
+    # Register and Login User 2
+    client.post(
+        "/api/auth/register",
+        json={"email": "user2@exemplo.com", "password": "password123"}
+    )
+    login_resp2 = client.post(
+        "/api/auth/login",
+        data={"username": "user2@exemplo.com", "password": "password123"}
+    )
+    user2_token = login_resp2.json()["access_token"]
+    user2_headers = {"Authorization": f"Bearer {user2_token}"}
+
+    # Login Admin
+    admin_login = client.post(
+        "/api/auth/login",
+        data={"username": "admin@riou.com", "password": "admin123"}
+    )
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 2. Creator creates two occurrences (Occ A and Occ B)
+    occ_a_resp = client.post(
+        "/api/ocorrencias",
+        json={
+            "title": "Buraco A",
+            "category": "infraestrutura",
+            "description": "Buraco grande A",
+            "lat": -7.1355,
+            "lng": -34.8421,
+            "type": "buracos em ruas"
+        },
+        headers=creator_headers
+    )
+    assert occ_a_resp.status_code == 201
+    occ_a_id = occ_a_resp.json()["id"]
+
+    occ_b_resp = client.post(
+        "/api/ocorrencias",
+        json={
+            "title": "Buraco B",
+            "category": "infraestrutura",
+            "description": "Buraco grande B",
+            "lat": -7.1355,
+            "lng": -34.8421,
+            "type": "buracos em ruas"
+        },
+        headers=creator_headers
+    )
+    assert occ_b_resp.status_code == 201
+    occ_b_id = occ_b_resp.json()["id"]
+
+    # 3. Creator tries to toggle affected on Occ A (must fail - 400)
+    toggle_creator_resp = client.post(
+        f"/api/ocorrencias/{occ_a_id}/toggle-afetado",
+        headers=creator_headers
+    )
+    assert toggle_creator_resp.status_code == 400
+    assert "criador da ocorrência não pode declarar-se afetado" in toggle_creator_resp.json()["detail"]
+
+    # 4. User 2 toggles affected on Occ A (must pass - 200)
+    toggle_user2_resp = client.post(
+        f"/api/ocorrencias/{occ_a_id}/toggle-afetado",
+        headers=user2_headers
+    )
+    assert toggle_user2_resp.status_code == 200
+    assert toggle_user2_resp.json()["is_affected"] is True
+
+    # 5. User 2 lists occurrences: affected_count and urgency_score must be None/hidden
+    list_user2_resp = client.get("/api/ocorrencias", headers=user2_headers)
+    assert list_user2_resp.status_code == 200
+    occ_a_data = next(o for o in list_user2_resp.json() if o["id"] == occ_a_id)
+    assert occ_a_data["is_affected"] is True
+    assert occ_a_data["affected_count"] is None
+    assert occ_a_data["urgency_score"] is None
+
+    # 6. Admin lists occurrences:
+    # Occ A must have affected_count = 1
+    # Occ A must be returned BEFORE Occ B (sorted by urgency, since they have same time but Occ A has 1 affected)
+    list_admin_resp = client.get("/api/ocorrencias", headers=admin_headers)
+    assert list_admin_resp.status_code == 200
+    admin_occurrences = list_admin_resp.json()
+    
+    occ_a_admin = next(o for o in admin_occurrences if o["id"] == occ_a_id)
+    assert occ_a_admin["affected_count"] == 1
+    assert occ_a_admin["urgency_score"] is not None
+
+    occ_b_admin = next(o for o in admin_occurrences if o["id"] == occ_b_id)
+    assert occ_b_admin["affected_count"] == 0
+
+    # Index of Occ A must be smaller than Index of Occ B (higher urgency first)
+    index_a = next(i for i, o in enumerate(admin_occurrences) if o["id"] == occ_a_id)
+    index_b = next(i for i, o in enumerate(admin_occurrences) if o["id"] == occ_b_id)
+    assert index_a < index_b
+
+    # 7. User 2 untoggles affected on Occ A
+    toggle_user2_again = client.post(
+        f"/api/ocorrencias/{occ_a_id}/toggle-afetado",
+        headers=user2_headers
+    )
+    assert toggle_user2_again.status_code == 200
+    assert toggle_user2_again.json()["is_affected"] is False
+
+    # Admin lists again, affected_count must be 0 now
+    list_admin_resp_2 = client.get("/api/ocorrencias", headers=admin_headers)
+    occ_a_admin_2 = next(o for o in list_admin_resp_2.json() if o["id"] == occ_a_id)
+    assert occ_a_admin_2["affected_count"] == 0
+
+
