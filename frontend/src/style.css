@@ -1242,3 +1242,116 @@ input:checked + .slider:before {
     border: 1px solid var(--border-color);
 }
 
+/* User Location Marker and Geolocation Control Styles */
+.user-location-marker-container {
+    background: transparent !important;
+    border: none !important;
+}
+
+.user-location-marker {
+    position: relative;
+    width: 24px;
+    height: 24px;
+}
+
+.user-location-dot {
+    width: 12px;
+    height: 12px;
+    background-color: #3b82f6;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+}
+
+.user-location-pulse {
+    width: 24px;
+    height: 24px;
+    background-color: rgba(59, 130, 246, 0.4);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: user-pulse 1.8s infinite ease-out;
+    z-index: 1;
+}
+
+@keyframes user-pulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(2.2);
+        opacity: 0;
+    }
+}
+
+/* Floating Geolocation Button */
+.locate-me-btn {
+    position: absolute;
+    top: 90px;
+    right: 12px;
+    z-index: 1000;
+    width: 34px;
+    height: 34px;
+    border-radius: 4px;
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-premium);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: var(--transition-smooth);
+}
+
+.locate-me-btn:hover {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+    transform: scale(1.05);
+}
+
+.locate-me-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* Pulse animation for active locating */
+.locate-me-btn.locating svg {
+    animation: spin 1s linear infinite;
+}
+
+.btn-current-location {
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(139, 92, 246, 0.15) !important;
+    border: 1px solid rgba(139, 92, 246, 0.3) !important;
+    color: #a78bfa !important;
+    font-size: 12px !important;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.btn-current-location:hover {
+    background: rgba(139, 92, 246, 0.25) !important;
+    border-color: #a78bfa !important;
+    color: #fff !important;
+}
+
+

@@ -113,6 +113,108 @@ const isUploading = ref(false);
 let map = null;
 let markers = {};
 let tempMarker = null;
+let userMarker = null;
+const isLocating = ref(false);
+
+function getCurrentLocation(options = { center: true, updateForm: false, silent: false }) {
+  if (!navigator.geolocation) {
+    if (!options.silent) {
+      alert("Geolocalização não é suportada pelo seu navegador.");
+    }
+    return;
+  }
+
+  isLocating.value = true;
+  
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      isLocating.value = false;
+
+      if (map) {
+        const userLocationIcon = window.L.divIcon({
+          html: `
+            <div class="user-location-marker">
+              <div class="user-location-dot"></div>
+              <div class="user-location-pulse"></div>
+            </div>
+          `,
+          className: 'user-location-marker-container',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        if (userMarker) {
+          userMarker.setLatLng([latitude, longitude]);
+        } else {
+          userMarker = window.L.marker([latitude, longitude], { icon: userLocationIcon }).addTo(map);
+          userMarker.bindPopup("Sua localização atual");
+        }
+
+        if (options.center) {
+          map.setView([latitude, longitude], 16, { animate: true, duration: 1.0 });
+        }
+      }
+
+      if (options.updateForm) {
+        formLat.value = latitude.toFixed(6);
+        formLng.value = longitude.toFixed(6);
+
+        if (map) {
+          if (tempMarker) {
+            map.removeLayer(tempMarker);
+          }
+
+          const tempIcon = window.L.divIcon({
+            html: `<div style="
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 38px;
+              height: 38px;
+              border-radius: 50%;
+              background: rgba(128, 29, 42, 0.2);
+              border: 2.5px dashed #801d2a;
+              font-size: 16px;
+            ">🔻</div>`,
+            className: 'temp-marker-icon',
+            iconSize: [38, 38],
+            iconAnchor: [19, 19]
+          });
+
+          tempMarker = window.L.marker([latitude, longitude], { icon: tempIcon }).addTo(map);
+        }
+      }
+    },
+    (error) => {
+      isLocating.value = false;
+      if (!options.silent) {
+        let msg = "Não foi possível obter a localização.";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            msg = "Permissão para geolocalização negada pelo usuário. Por favor, ative a permissão de localização no seu navegador.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            msg = "As informações de localização estão indisponíveis.";
+            break;
+          case error.TIMEOUT:
+            msg = "Tempo limite atingido para obter a localização.";
+            break;
+        }
+        alert(msg);
+      }
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 8000,
+      maximumAge: 0
+    }
+  );
+}
+
+function useCurrentLocationForForm() {
+  getCurrentLocation({ center: true, updateForm: true, silent: false });
+}
 
 // Error & Status Message State
 const errorMessage = ref('');
@@ -383,6 +485,7 @@ function handleLogout() {
   }
   markers = {};
   tempMarker = null;
+  userMarker = null;
   occurrences.value = [];
 }
 
@@ -674,6 +777,9 @@ function initMap() {
     
     switchTab('form');
   });
+
+  // Tenta geolocalizar o usuário no carregamento inicial do mapa
+  getCurrentLocation({ center: true, updateForm: false, silent: true });
 }
 
 function updateMapMarkers() {
@@ -1196,6 +1302,26 @@ async function toggleAfetado(id) {
               </div>
             </div>
 
+            <!-- Botão Usar Localização Atual -->
+            <div v-if="!toggles.read_only_mode || userRole === 'admin'" style="display: flex; justify-content: flex-start; margin-top: -4px; margin-bottom: 4px;">
+              <button 
+                type="button" 
+                class="btn-current-location" 
+                @click="useCurrentLocationForForm"
+                :disabled="isLocating"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" :style="{ animation: isLocating ? 'spin 1s linear infinite' : 'none' }">
+                  <circle cx="12" cy="12" r="10"/>
+                  <circle cx="12" cy="12" r="3"/>
+                  <line x1="12" y1="1" x2="12" y2="3"/>
+                  <line x1="12" y1="21" x2="12" y2="23"/>
+                  <line x1="1" y1="12" x2="3" y2="12"/>
+                  <line x1="21" y1="12" x2="23" y2="12"/>
+                </svg>
+                {{ isLocating ? 'Obtendo localização...' : 'Usar minha localização atual' }}
+              </button>
+            </div>
+
             <div class="form-group">
               <label>Categoria <span class="required">*</span></label>
               <select v-model="formCategory" @change="onCategoryChange" required>
@@ -1367,6 +1493,24 @@ async function toggleAfetado(id) {
     <main class="map-wrapper">
       <div id="map"></div>
       
+      <!-- Botão Flutuante de Geolocalização -->
+      <button 
+        class="locate-me-btn" 
+        :class="{ locating: isLocating }" 
+        @click="getCurrentLocation({ center: true, updateForm: false, silent: false })" 
+        title="Minha Localização"
+        :disabled="isLocating"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="3"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+        </svg>
+      </button>
+
       <!-- Quick Floating Action -->
       <div class="map-overlay-info">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="pulse-icon"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z"/></svg>
