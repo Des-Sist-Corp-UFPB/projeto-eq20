@@ -99,6 +99,56 @@ const searchQuery = ref('');
 const categoryFilter = ref('');
 const statusFilter = ref('');
 
+// Sidebar & Mobile Sheet Responsive States
+const isSidebarCollapsed = ref(false);
+const mobileSheetState = ref('half'); // 'collapsed', 'half', 'expanded'
+
+function isMobile() {
+  return window.innerWidth <= 768;
+}
+
+function cycleMobileSheetState() {
+  if (mobileSheetState.value === 'collapsed') {
+    mobileSheetState.value = 'half';
+  } else if (mobileSheetState.value === 'half') {
+    mobileSheetState.value = 'expanded';
+  } else {
+    mobileSheetState.value = 'collapsed';
+  }
+}
+
+let touchStartY = 0;
+let touchStartTime = 0;
+
+function handleTouchStart(e) {
+  touchStartY = e.touches[0].clientY;
+  touchStartTime = Date.now();
+}
+
+function handleTouchEnd(e) {
+  const touchEndY = e.changedTouches[0].clientY;
+  const diffY = touchEndY - touchStartY;
+  const duration = Date.now() - touchStartTime;
+  
+  if (Math.abs(diffY) > 50 && duration < 300) {
+    if (diffY < 0) {
+      if (mobileSheetState.value === 'collapsed') {
+        mobileSheetState.value = 'half';
+      } else if (mobileSheetState.value === 'half') {
+        mobileSheetState.value = 'expanded';
+      }
+    } else {
+      if (mobileSheetState.value === 'expanded') {
+        mobileSheetState.value = 'half';
+      } else if (mobileSheetState.value === 'half') {
+        mobileSheetState.value = 'collapsed';
+      }
+    }
+  } else {
+    cycleMobileSheetState();
+  }
+}
+
 // Form State
 const formLat = ref(null);
 const formLng = ref(null);
@@ -982,6 +1032,9 @@ function initMap() {
     formLng.value = lng.toFixed(6);
     
     switchTab('form');
+    if (isMobile()) {
+      mobileSheetState.value = 'expanded';
+    }
   });
 
   // Tenta geolocalizar o usuário no carregamento inicial do mapa
@@ -1025,6 +1078,9 @@ function updateMapMarkers() {
     
     marker.on('click', () => {
       highlightListItem(item.id);
+      if (isMobile()) {
+        mobileSheetState.value = 'half';
+      }
     });
 
     markers[item.id] = marker;
@@ -1141,6 +1197,10 @@ function focusOccurrence(id) {
     marker.openPopup();
   }
   highlightListItem(id);
+
+  if (isMobile()) {
+    mobileSheetState.value = 'half';
+  }
 }
 
 function highlightListItem(id) {
@@ -1161,6 +1221,14 @@ function switchTab(tabName) {
   }
   if (tabName === 'admin') {
     fetchUsersList();
+  }
+  
+  if (isMobile()) {
+    if (tabName === 'form' || tabName === 'admin') {
+      mobileSheetState.value = 'expanded';
+    } else {
+      mobileSheetState.value = 'half';
+    }
   }
 }
 
@@ -1356,10 +1424,33 @@ async function toggleAfetado(id) {
   </div>
 
   <!-- 2. CORE APPLICATION -->
-  <div v-else class="app-container">
+  <div v-else class="app-container" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
     
     <!-- Sidebar / Controle -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ 'collapsed': isSidebarCollapsed, 'm-collapsed': mobileSheetState === 'collapsed', 'm-half': mobileSheetState === 'half', 'm-expanded': mobileSheetState === 'expanded' }">
+      
+      <!-- Drag Handle for Mobile Bottom Sheet -->
+      <div 
+        class="mobile-drag-handle-container" 
+        @touchstart="handleTouchStart" 
+        @touchend="handleTouchEnd"
+      >
+        <div class="mobile-drag-handle"></div>
+      </div>
+
+      <!-- Sidebar Toggle for Desktop -->
+      <button 
+        class="sidebar-toggle-btn" 
+        @click="isSidebarCollapsed = !isSidebarCollapsed"
+        :title="isSidebarCollapsed ? 'Expandir painel' : 'Recolher painel'"
+      >
+        <svg v-if="isSidebarCollapsed" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
       <header class="app-header">
         <div class="logo">
           <div class="logo-bg">

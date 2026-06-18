@@ -83,41 +83,141 @@ body {
     background: rgba(255, 255, 255, 0.2);
 }
 
-/* App Container (Split Screen Layout) */
+/* App Container (Unified Full-Screen Map Layout) */
 .app-container {
-    display: grid;
-    grid-template-columns: 450px 1fr;
+    position: relative;
     height: 100vh;
     width: 100vw;
+    overflow: hidden;
 }
 
-@media (max-width: 1024px) {
-    .app-container {
-        grid-template-columns: 1fr;
-        grid-template-rows: 60vh 40vh;
-    }
-}
-
-/* Sidebar Styling */
+/* Sidebar Styling (Desktop Floating Glassmorphic Panel) */
 .sidebar {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    bottom: 20px;
+    width: 420px;
+    height: calc(100vh - 40px);
     background-color: var(--bg-sidebar);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-right: 1px solid var(--border-color);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    overflow: hidden;
-    z-index: 10;
-    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.2);
+    overflow: visible; /* to allow toggle button to float on the right edge */
+    z-index: 1005;
+    box-shadow: var(--shadow-premium);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1);
 }
 
-@media (max-width: 1024px) {
+/* Sidebar desktop collapse state */
+.sidebar.collapsed {
+    transform: translateX(calc(-100% - 20px));
+}
+
+/* Sidebar Collapse Toggle Button */
+.sidebar-toggle-btn {
+    position: absolute;
+    top: 50%;
+    right: -24px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 48px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 11;
+    backdrop-filter: blur(10px);
+    transition: var(--transition-smooth);
+    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar-toggle-btn:hover {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+.mobile-drag-handle-container {
+    display: none; /* Hidden on desktop */
+}
+
+/* Mobile Bottom Sheet Layout */
+@media (max-width: 768px) {
     .sidebar {
-        height: 100%;
-        border-right: none;
+        position: absolute;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        border-radius: 20px 20px 0 0;
+        border: none;
         border-top: 1px solid var(--border-color);
-        order: 2;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+        transform: none; /* override desktop collapsed translate */
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .sidebar.collapsed {
+        transform: none; /* Disable desktop translate */
+    }
+    
+    .sidebar.m-collapsed {
+        height: 80px;
+    }
+    
+    .sidebar.m-half {
+        height: 45vh;
+    }
+    
+    .sidebar.m-expanded {
+        height: 85vh;
+    }
+    
+    .sidebar-toggle-btn {
+        display: none; /* Hide desktop toggle on mobile */
+    }
+    
+    /* Show mobile drag handle */
+    .mobile-drag-handle-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 24px;
+        cursor: pointer;
+        padding-top: 8px;
+        padding-bottom: 4px;
+        flex-shrink: 0;
+        background: transparent;
+        z-index: 15;
+    }
+    
+    .mobile-drag-handle {
+        width: 40px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.25);
+        border-radius: 2px;
+        transition: var(--transition-smooth);
+    }
+    
+    .mobile-drag-handle-container:hover .mobile-drag-handle {
+        background: rgba(255, 255, 255, 0.45);
+    }
+    
+    .app-header {
+        padding: 12px 16px;
     }
 }
 
@@ -679,9 +779,12 @@ input[readonly] {
 
 /* Map Section */
 .map-wrapper {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     height: 100%;
     width: 100%;
+    z-index: 1;
 }
 
 #map {
@@ -692,8 +795,9 @@ input[readonly] {
 /* Map Floating Instructions Overlay */
 .map-overlay-info {
     position: absolute;
-    bottom: 24px;
-    right: 24px;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 1000;
     background: rgba(15, 23, 42, 0.85);
     backdrop-filter: blur(10px);
