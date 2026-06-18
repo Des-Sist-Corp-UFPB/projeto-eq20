@@ -91,7 +91,11 @@ def get_current_user_optional(
         if banned_until.tzinfo is None:
             banned_until = banned_until.replace(tzinfo=timezone.utc)
         if banned_until > datetime.now(UTC):
-            return None
+            ban_str = banned_until.strftime("%d/%m/%Y %H:%M:%S")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Sua conta está temporariamente banida até {ban_str}.",
+            )
 
     return user
 

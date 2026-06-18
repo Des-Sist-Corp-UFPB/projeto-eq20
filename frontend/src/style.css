@@ -1354,4 +1354,250 @@ input:checked + .slider:before {
     color: #fff !important;
 }
 
+.btn-current-location:disabled {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.btn-current-location:disabled:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--text-muted) !important;
+}
+
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.btn-primary:disabled {
+    background: rgba(128, 29, 42, 0.25) !important;
+    color: rgba(255, 255, 255, 0.3) !important;
+    border: 1px solid rgba(128, 29, 42, 0.15) !important;
+    box-shadow: none !important;
+    transform: none !important;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-primary:disabled:hover {
+    background: rgba(128, 29, 42, 0.25) !important;
+    color: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+.btn-login-redirect {
+    background: var(--color-primary);
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    box-shadow: 0 2px 8px var(--color-primary-glow);
+}
+
+.btn-login-redirect:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--color-primary-glow);
+}
+
+/* --- Cohesive Custom Modal System --- */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(4, 5, 7, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.modal-backdrop.ban-backdrop {
+    z-index: 10001; /* Layer above normal modals */
+}
+
+.modal-card {
+    background: rgba(12, 13, 18, 0.9);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), inset 0 0 20px rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 440px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-card.ban-card {
+    max-width: 480px;
+    border-color: rgba(239, 68, 68, 0.3);
+    box-shadow: 0 25px 60px -15px rgba(239, 68, 68, 0.15), inset 0 0 20px rgba(239, 68, 68, 0.05);
+}
+
+.modal-card.scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scaleIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.modal-header h3 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.modal-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Modal states coloring */
+.modal-header.success h3 {
+    color: #34d399;
+}
+.modal-header.success .modal-icon {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-header.error h3 {
+    color: #f87171;
+}
+.modal-header.error .modal-icon {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-header.warning h3 {
+    color: #fbbf24;
+}
+.modal-header.warning .modal-icon {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-header.info h3, .modal-header.confirm h3 {
+    color: #38bdf8;
+}
+.modal-header.info .modal-icon, .modal-header.confirm .modal-icon {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+/* Ban specific styling */
+.ban-reason {
+    font-size: 14px;
+    color: var(--text-primary);
+    text-align: center;
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.countdown-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.countdown-wrapper.permanent {
+    border-color: rgba(239, 68, 68, 0.25);
+    background: rgba(239, 68, 68, 0.03);
+}
+
+.countdown-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+}
+
+.countdown-timer {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    color: #f87171;
+    text-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    letter-spacing: 1px;
+}
+
+/* Pulsing alert animation for ban */
+.warning-pulse {
+    animation: alertPulse 2s infinite;
+}
+
+@keyframes alertPulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+
 

@@ -59,6 +59,7 @@ class OcorrenciaResponse(OcorrenciaBase):
     status: str
     date: datetime
     user_id: Optional[int] = None
+    creator_name: str
     affected_count: Optional[int] = None
     is_affected: Optional[bool] = None
     urgency_score: Optional[float] = None

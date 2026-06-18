@@ -32,7 +32,7 @@ def list_ocorrencias(
 @router.post("", response_model=OcorrenciaResponse, status_code=status.HTTP_201_CREATED)
 def create_ocorrencia(
     ocorrencia: OcorrenciaCreate,
-    current_user: UserModel = Depends(get_current_user),
+    current_user: Optional[UserModel] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ):
     service = OcorrenciaService(db)
@@ -68,7 +68,7 @@ def delete_ocorrencia(
 @router.post("/upload")
 async def upload_photo(
     file: UploadFile = File(...),
-    current_user: UserModel = Depends(get_current_user),
+    current_user: Optional[UserModel] = Depends(get_current_user_optional),
 ):
     """Realiza o upload de uma foto de ocorrência para o S3/MinIO."""
     if not file.content_type.startswith("image/"):

@@ -72,12 +72,13 @@ class OcorrenciaService:
     def create_ocorrencia(
         self,
         ocorrencia: OcorrenciaCreate,
-        current_user: UserModel,
+        current_user: Optional[UserModel],
     ) -> OcorrenciaModel:
         """Cria uma nova ocorrência com verificações de toggles e permissões."""
         # Check Read-Only Mode toggle
         read_only = self.toggle_repo.get_value("read_only_mode", False)
-        if read_only and current_user.role != "admin":
+        is_admin = current_user and current_user.role == "admin"
+        if read_only and not is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
@@ -99,7 +100,7 @@ class OcorrenciaService:
             lng=ocorrencia.lng,
             photo=ocorrencia.photo,
             type=ocorrencia.type,
-            user_id=current_user.id,
+            user_id=current_user.id if current_user else None,
         )
         return self._populate_dynamic_fields([db_occ], current_user)[0]
 

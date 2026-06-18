@@ -20,8 +20,11 @@ class OcorrenciaRepository:
         status: Optional[str] = None,
         exclude_category: Optional[str] = None,
     ) -> list[OcorrenciaModel]:
-        """Lista ocorrências com filtros opcionais, pré-carregando a relação de afetados."""
-        query = self.db.query(OcorrenciaModel).options(joinedload(OcorrenciaModel.afetados))
+        """Lista ocorrências com filtros opcionais, pré-carregando afetados e o criador (owner)."""
+        query = self.db.query(OcorrenciaModel).options(
+            joinedload(OcorrenciaModel.afetados),
+            joinedload(OcorrenciaModel.owner)
+        )
 
         if category:
             query = query.filter(OcorrenciaModel.category == category)
@@ -33,10 +36,13 @@ class OcorrenciaRepository:
         return query.order_by(OcorrenciaModel.date.desc()).all()
 
     def get_by_id(self, ocorrencia_id: int) -> Optional[OcorrenciaModel]:
-        """Busca uma ocorrência pelo ID, pré-carregando a relação de afetados."""
+        """Busca uma ocorrência pelo ID, pré-carregando afetados e o criador (owner)."""
         return (
             self.db.query(OcorrenciaModel)
-            .options(joinedload(OcorrenciaModel.afetados))
+            .options(
+                joinedload(OcorrenciaModel.afetados),
+                joinedload(OcorrenciaModel.owner)
+            )
             .filter(OcorrenciaModel.id == ocorrencia_id)
             .first()
         )
@@ -50,7 +56,7 @@ class OcorrenciaRepository:
         lat: float,
         lng: float,
         type: str,
-        user_id: int,
+        user_id: Optional[int] = None,
         photo: Optional[str] = None,
     ) -> OcorrenciaModel:
         """Cria uma nova ocorrência no banco."""

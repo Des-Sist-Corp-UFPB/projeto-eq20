@@ -38,6 +38,13 @@ class OcorrenciaModel(Base):
     # Relação N:M com os usuários que foram afetados por esta ocorrência
     afetados = relationship("UserModel", secondary=ocorrencia_afetados, backref="ocorrencias_afetadas")
 
+    @property
+    def creator_name(self) -> str:
+        """Retorna o email do criador ou 'Anônimo' se for uma ocorrência anônima."""
+        if self.owner:
+            return self.owner.email
+        return "Anônimo"
+
     def get_urgency_score(self) -> float:
         """Calcula o nível de urgência com base no tempo de criação e nas pessoas afetadas."""
         from datetime import datetime, UTC, timezone

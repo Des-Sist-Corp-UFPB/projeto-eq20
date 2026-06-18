@@ -73,7 +73,7 @@ def test_register_and_login():
     assert data["role"] == "user"
 
 def test_create_occurrence_unauthenticated():
-    # Try to post an occurrence without authorization header
+    # Try to post an occurrence without authorization header (should succeed in anonymous mode)
     response = client.post(
         "/api/ocorrencias",
         json={
@@ -85,8 +85,10 @@ def test_create_occurrence_unauthenticated():
             "type": "buracos em ruas"
         }
     )
-    # Must fail because no token was passed
-    assert response.status_code == 401
+    assert response.status_code == 201
+    data = response.json()
+    assert data["creator_name"] == "Anônimo"
+    assert data["user_id"] is None
 
 def test_list_occurrences():
     # Public route to fetch occurrences list

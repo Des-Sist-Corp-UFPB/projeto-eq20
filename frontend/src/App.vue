@@ -76,6 +76,7 @@ function sanitizeCategoryClass(category) {
 
 // --- AUTHENTICATION STATE ---
 const isAuthenticated = ref(false);
+const showLoginScreen = ref(false);
 const authMode = ref('login'); // 'login', 'register', 'forgot', 'reset'
 const userEmail = ref('');
 const userRole = ref('');
@@ -115,11 +116,26 @@ let markers = {};
 let tempMarker = null;
 let userMarker = null;
 const isLocating = ref(false);
+const isLocationPermissionDenied = ref(false);
+
+async function checkLocationPermission() {
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const result = await navigator.permissions.query({ name: 'geolocation' });
+      isLocationPermissionDenied.value = result.state === 'denied';
+      result.onchange = () => {
+        isLocationPermissionDenied.value = result.state === 'denied';
+      };
+    } catch (e) {
+      console.warn("Error querying geolocation permission:", e);
+    }
+  }
+}
 
 function getCurrentLocation(options = { center: true, updateForm: false, silent: false }) {
   if (!navigator.geolocation) {
     if (!options.silent) {
-      alert("Geolocalização não é suportada pelo seu navegador.");
+      showAlert("Geolocalização não é suportada pelo seu navegador.", "error");
     }
     return;
   }
@@ -130,6 +146,7 @@ function getCurrentLocation(options = { center: true, updateForm: false, silent:
     (position) => {
       const { latitude, longitude } = position.coords;
       isLocating.value = false;
+      isLocationPermissionDenied.value = false;
 
       if (map) {
         const userLocationIcon = window.L.divIcon({
@@ -188,6 +205,9 @@ function getCurrentLocation(options = { center: true, updateForm: false, silent:
     },
     (error) => {
       isLocating.value = false;
+      if (error.code === error.PERMISSION_DENIED) {
+        isLocationPermissionDenied.value = true;
+      }
       if (!options.silent) {
         let msg = "Não foi possível obter a localização.";
         switch (error.code) {
@@ -201,7 +221,7 @@ function getCurrentLocation(options = { center: true, updateForm: false, silent:
             msg = "Tempo limite atingido para obter a localização.";
             break;
         }
-        alert(msg);
+        showAlert(msg, "error");
       }
     },
     {
@@ -219,6 +239,117 @@ function useCurrentLocationForForm() {
 // Error & Status Message State
 const errorMessage = ref('');
 
+// --- MODAL & NOTIFICATION STATE ---
+const modalState = ref({
+  isOpen: false,
+  title: '',
+  message: '',
+  type: 'info', // 'info', 'success', 'error', 'warning', 'confirm'
+  onConfirm: null,
+  onCancel: null
+});
+
+function showAlert(message, type = 'info') {
+  let title = 'Informação';
+  if (type === 'success') title = 'Sucesso';
+  if (type === 'error') title = 'Erro';
+  if (type === 'warning') title = 'Atenção';
+  
+  modalState.value = {
+    isOpen: true,
+    title,
+    message,
+    type,
+    onConfirm: null,
+    onCancel: null
+  };
+}
+
+function showConfirm(message, onConfirm, onCancel = null) {
+  modalState.value = {
+    isOpen: true,
+    title: 'Confirmação',
+    message,
+    type: 'confirm',
+    onConfirm,
+    onCancel
+  };
+}
+
+function handleModalConfirm() {
+  if (modalState.value.onConfirm) {
+    modalState.value.onConfirm();
+  }
+  modalState.value.isOpen = false;
+}
+
+function handleModalCancel() {
+  if (modalState.value.onCancel) {
+    modalState.value.onCancel();
+  }
+  modalState.value.isOpen = false;
+}
+
+function closeAlertModal() {
+  modalState.value.isOpen = false;
+}
+
+// --- BAN SYSTEM STATE ---
+const isBannedModalActive = ref(false);
+const banCountdown = ref('');
+const banMessage = ref('');
+let banTimer = null;
+
+function showBanModal(message) {
+  banMessage.value = message;
+  isBannedModalActive.value = true;
+  
+  // Extract ban date
+  const match = message.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (match) {
+    const [_, day, month, year, hours, minutes, seconds] = match;
+    const banDate = new Date(year, month - 1, day, hours, minutes, seconds);
+    
+    if (banTimer) clearInterval(banTimer);
+    
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = banDate - now;
+      if (diff <= 0) {
+        banCountdown.value = 'Expirado';
+        clearInterval(banTimer);
+      } else {
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        let timeStr = '';
+        if (d > 0) timeStr += `${d}d `;
+        if (h > 0 || d > 0) timeStr += `${h}h `;
+        timeStr += `${m}m ${s}s`;
+        
+        banCountdown.value = timeStr;
+      }
+    };
+    
+    updateCountdown();
+    banTimer = setInterval(updateCountdown, 1000);
+  } else {
+    banCountdown.value = 'Permanente';
+  }
+}
+
+function handleBanEnd() {
+  handleLogout();
+  isBannedModalActive.value = false;
+}
+
+function handleLogoutAndCloseBan() {
+  handleLogout();
+  isBannedModalActive.value = false;
+}
+
 // --- ADMIN STATE ---
 const toggles = ref({
   allow_personal_occurrences: true,
@@ -232,6 +363,15 @@ const totalCount = computed(() => occurrences.value.length);
 const pendingCount = computed(() => occurrences.value.filter(o => o.status === 'pendente').length);
 const progressCount = computed(() => occurrences.value.filter(o => o.status === 'progresso').length);
 const resolvedCount = computed(() => occurrences.value.filter(o => o.status === 'resolvido').length);
+
+const isFormValid = computed(() => {
+  return formLat.value !== null && formLat.value !== undefined && formLat.value !== '' &&
+         formLng.value !== null && formLng.value !== undefined && formLng.value !== '' &&
+         formCategory.value !== '' &&
+         formType.value !== '' &&
+         formTitle.value && formTitle.value.trim() !== '' &&
+         formDescription.value && formDescription.value.trim() !== '';
+});
 
 const availableTypes = computed(() => {
   if (!formCategory.value) return [];
@@ -266,6 +406,13 @@ watch([filteredOccurrences], () => {
 // Lifecycle
 onMounted(() => {
   checkLocalAuth();
+  checkLocationPermission();
+  if (!isAuthenticated.value) {
+    nextTick(() => {
+      initMap();
+      fetchOccurrences();
+    });
+  }
 });
 
 // Check if credentials exist in localStorage
@@ -283,11 +430,28 @@ function checkLocalAuth() {
     isAuthenticated.value = true;
     
     // Init app
-    nextTick(() => {
+    nextTick(async () => {
       initMap();
       fetchOccurrences();
       if (role === 'admin') {
         fetchAdminToggles();
+      }
+
+      // Verify if the session is still active and user is not banned
+      try {
+        const res = await apiFetch('/auth/me');
+        if (!res.ok) {
+          if (res.status === 403) {
+            const data = await res.json();
+            if (data.detail && data.detail.includes('banida')) {
+              showBanModal(data.detail);
+            }
+          }
+        }
+      } catch (err) {
+        if (err.message && err.message.includes('banida')) {
+          showBanModal(err.message);
+        }
       }
     });
   }
@@ -318,6 +482,19 @@ async function apiFetch(path, options = {}) {
     handleLogout();
     throw new Error('Sessão expirada. Faça login novamente.');
   }
+
+  if (res.status === 403) {
+    const clone = res.clone();
+    try {
+      const data = await clone.json();
+      if (data.detail && data.detail.includes('banida')) {
+        showBanModal(data.detail);
+        throw new Error(data.detail);
+      }
+    } catch (e) {
+      // not ban
+    }
+  }
   
   return res;
 }
@@ -341,6 +518,9 @@ async function handleLogin() {
 
     if (!res.ok) {
       const data = await res.json();
+      if (res.status === 403 && data.detail && data.detail.includes('banida')) {
+        showBanModal(data.detail);
+      }
       throw new Error(data.detail || 'E-mail ou senha incorretos.');
     }
 
@@ -357,6 +537,7 @@ async function handleLogin() {
     userRole.value = data.role;
     userId.value = data.id;
     isAuthenticated.value = true;
+    showLoginScreen.value = false;
 
     // Reset login inputs
     inputEmail.value = '';
@@ -477,6 +658,7 @@ function handleLogout() {
   userRole.value = '';
   userId.value = null;
   isAuthenticated.value = false;
+  showLoginScreen.value = false;
   
   // Clean map
   if (map) {
@@ -487,6 +669,27 @@ function handleLogout() {
   tempMarker = null;
   userMarker = null;
   occurrences.value = [];
+
+  nextTick(() => {
+    initMap();
+    fetchOccurrences();
+  });
+}
+
+function goToLogin() {
+  showLoginScreen.value = true;
+  if (map) {
+    map.remove();
+    map = null;
+  }
+}
+
+function dismissLogin() {
+  showLoginScreen.value = false;
+  nextTick(() => {
+    initMap();
+    fetchOccurrences();
+  });
 }
 
 // --- DATA ACCESS METHODS ---
@@ -505,12 +708,12 @@ async function fetchOccurrences() {
 
 async function createOccurrence() {
   if (!formLat.value || !formLng.value) {
-    alert("Por favor, clique no mapa para selecionar as coordenadas.");
+    showAlert("Por favor, clique no mapa para selecionar as coordenadas.", "warning");
     return;
   }
 
   if (formCategory.value === 'segurança pública' && !toggles.value.allow_personal_occurrences) {
-    alert("O cadastro de ocorrências de segurança pública está desabilitado pelo administrador.");
+    showAlert("O cadastro de ocorrências de segurança pública está desabilitado pelo administrador.", "warning");
     return;
   }
 
@@ -547,7 +750,7 @@ async function createOccurrence() {
     }, 400);
 
   } catch (err) {
-    alert(err.message || "Erro ao salvar o registro no banco.");
+    showAlert(err.message || "Erro ao salvar o registro no banco.", "error");
     console.error(err);
   }
 }
@@ -587,34 +790,34 @@ async function updateStatus(id, newStatus) {
       }
     }
   } catch (err) {
-    alert(err.message);
+    showAlert(err.message, "error");
     // Reload markers to reset selector
     fetchOccurrences();
   }
 }
 
 async function removeOccurrence(id) {
-  if (!confirm("Tem certeza que deseja excluir esta ocorrência definitivamente?")) return;
+  showConfirm("Tem certeza que deseja excluir esta ocorrência definitivamente?", async () => {
+    try {
+      const res = await apiFetch(`/ocorrencias/${id}`, {
+        method: 'DELETE'
+      });
 
-  try {
-    const res = await apiFetch(`/ocorrencias/${id}`, {
-      method: 'DELETE'
-    });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Erro ao deletar.');
+      }
 
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.detail || 'Erro ao deletar.');
+      occurrences.value = occurrences.value.filter(o => o.id !== id);
+      
+      if (markers[id]) {
+        map.removeLayer(markers[id]);
+        delete markers[id];
+      }
+    } catch (err) {
+      showAlert(err.message, "error");
     }
-
-    occurrences.value = occurrences.value.filter(o => o.id !== id);
-    
-    if (markers[id]) {
-      map.removeLayer(markers[id]);
-      delete markers[id];
-    }
-  } catch (err) {
-    alert(err.message);
-  }
+  });
 }
 
 // --- ADMIN PANEL METHODS ---
@@ -650,15 +853,16 @@ async function saveAdminToggle(key, val) {
 }
 
 async function executeBatchResolve() {
-  if (!confirm("Deseja marcar todas as ocorrências pendentes e em curso como Resolvidas?")) return;
-  try {
-    const res = await apiFetch('/admin/batch-resolve', { method: 'POST' });
-    const data = await res.json();
-    alert(data.message);
-    fetchOccurrences();
-  } catch (err) {
-    alert("Erro ao executar ação em lote.");
-  }
+  showConfirm("Deseja marcar todas as ocorrências pendentes e em curso como Resolvidas?", async () => {
+    try {
+      const res = await apiFetch('/admin/batch-resolve', { method: 'POST' });
+      const data = await res.json();
+      showAlert(data.message, "success");
+      fetchOccurrences();
+    } catch (err) {
+      showAlert("Erro ao executar ação em lote.", "error");
+    }
+  });
 }
 
 async function fetchUsersList() {
@@ -682,47 +886,49 @@ async function banUser(userIdVal, durationMinutes) {
       const data = await res.json();
       throw new Error(data.detail || 'Erro ao banir usuário.');
     }
-    alert("Usuário banido com sucesso!");
+    showAlert("Usuário banido com sucesso!", "success");
     fetchUsersList();
   } catch (err) {
-    alert(err.message);
+    showAlert(err.message, "error");
   }
 }
 
 async function unbanUser(userIdVal) {
-  if (!confirm("Deseja desbanir este usuário?")) return;
-  try {
-    const res = await apiFetch(`/admin/users/${userIdVal}/ban`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ duration_minutes: 0 })
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.detail || 'Erro ao desbanir usuário.');
+  showConfirm("Deseja desbanir este usuário?", async () => {
+    try {
+      const res = await apiFetch(`/admin/users/${userIdVal}/ban`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration_minutes: 0 })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Erro ao desbanir usuário.');
+      }
+      showAlert("Usuário desbanido com sucesso!", "success");
+      fetchUsersList();
+    } catch (err) {
+      showAlert(err.message, "error");
     }
-    alert("Usuário desbanido com sucesso!");
-    fetchUsersList();
-  } catch (err) {
-    alert(err.message);
-  }
+  });
 }
 
 async function deleteUserAccount(userIdVal) {
-  if (!confirm("Tem certeza que deseja excluir esta conta definitivamente? Todas as ocorrências deste usuário ficarão sem criador associado.")) return;
-  try {
-    const res = await apiFetch(`/admin/users/${userIdVal}`, {
-      method: 'DELETE'
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.detail || 'Erro ao excluir conta.');
+  showConfirm("Tem certeza que deseja excluir esta conta definitivamente? Todas as ocorrências deste usuário ficarão sem criador associado.", async () => {
+    try {
+      const res = await apiFetch(`/admin/users/${userIdVal}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'Erro ao excluir conta.');
+      }
+      showAlert("Conta excluída com sucesso!", "success");
+      fetchUsersList();
+    } catch (err) {
+      showAlert(err.message, "error");
     }
-    alert("Conta excluída com sucesso!");
-    fetchUsersList();
-  } catch (err) {
-    alert(err.message);
-  }
+  });
 }
 
 // --- MAP & MARKERS ---
@@ -839,7 +1045,7 @@ function createPopupContent(item) {
   const typeText = TYPE_NAMES[item.type] ? TYPE_NAMES[item.type].split(' ').slice(1).join(' ') : item.type;
   const typeBadge = `<span style="${badgeStyle} font-size:9px; padding: 2px 6px; border-radius:4px; margin-left:6px; font-weight:700; text-transform:uppercase;">${typeText}</span>`;
   
-  const showDelete = userRole.value === 'admin' || (item.user_id === userId.value);
+  const showDelete = isAuthenticated.value && (userRole.value === 'admin' || (item.user_id !== null && item.user_id === userId.value));
   const deleteBtn = showDelete ? `
     <button class="btn-delete" onclick="window.deleteOccurrence(${item.id})">
       Excluir
@@ -867,6 +1073,10 @@ function createPopupContent(item) {
     </div>
   ` : '';
 
+  const creatorHtml = `<div style="font-size: 11px; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+    <span>👤 Criado por: <strong>${item.creator_name || 'Anônimo'}</strong></span>
+  </div>`;
+
   return `
     <div class="map-popup-card">
       <div class="map-popup-header">
@@ -876,7 +1086,8 @@ function createPopupContent(item) {
       <div class="map-popup-desc">
         <strong style="color: #cbd5e1;">Categoria:</strong> ${CATEGORY_NAMES[item.category] || item.category}<br>
         <strong style="color: #cbd5e1;">Reportado em:</strong> ${dateFormatted}<br>
-        <p style="margin-top: 4px; color: #94a3b8; margin-bottom: 6px;">${item.description}</p>
+        ${creatorHtml}
+        <p style="margin-top: 6px; color: #94a3b8; margin-bottom: 6px;">${item.description}</p>
         ${adminStatsHtml}
       </div>
       <div class="map-popup-actions">
@@ -971,7 +1182,7 @@ function clearFilters() {
 
 function generateMockPhoto() {
   if (!formCategory.value) {
-    alert("Por favor, selecione uma categoria antes de gerar a foto.");
+    showAlert("Por favor, selecione uma categoria antes de gerar a foto.", "warning");
     return;
   }
   const randomSeed = Math.floor(Math.random() * 100);
@@ -998,7 +1209,7 @@ async function onFileChange(e) {
     const data = await res.json();
     formPhoto.value = data.url;
   } catch (err) {
-    alert(err.message);
+    showAlert(err.message, "error");
   } finally {
     isUploading.value = false;
   }
@@ -1012,6 +1223,10 @@ function formatDate(dateString) {
 }
 
 async function toggleAfetado(id) {
+  if (!isAuthenticated.value) {
+    showAlert("Você precisa estar logado para declarar-se afetado por esta ocorrência.", "warning");
+    return;
+  }
   try {
     const res = await apiFetch(`/ocorrencias/${id}/toggle-afetado`, {
       method: 'POST'
@@ -1032,14 +1247,14 @@ async function toggleAfetado(id) {
     }
     
   } catch (err) {
-    alert(err.message);
+    showAlert(err.message, "error");
   }
 }
 </script>
 
 <template>
   <!-- 1. LOGIN / AUTHENTICATION LAYER -->
-  <div v-if="!isAuthenticated" class="auth-layer">
+  <div v-if="showLoginScreen && !isAuthenticated" class="auth-layer">
     <div class="auth-left">
       <div class="auth-box glass-card">
         <h2 class="auth-form-title">Registro Inteligente de Ocorrências Urbanas</h2>
@@ -1063,6 +1278,11 @@ async function toggleAfetado(id) {
             <a href="#" @click.prevent="authMode = 'register'">Criar Conta</a>
             <a href="#" @click.prevent="authMode = 'forgot'">Esqueci a Senha</a>
           </div>
+          <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.10); padding-top: 16px; text-align: center;">
+            <button type="button" @click="dismissLogin" class="btn btn-secondary btn-block" style="border-color: rgba(255,255,255,0.15); color: #cbd5e1; background: rgba(255,255,255,0.03);">
+              Voltar ao Mapa (Modo Anônimo)
+            </button>
+          </div>
         </form>
 
         <!-- Mode 2: Register -->
@@ -1083,6 +1303,11 @@ async function toggleAfetado(id) {
           <div class="auth-links">
             <a href="#" @click.prevent="authMode = 'login'">Já tenho uma conta (Login)</a>
           </div>
+          <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.10); padding-top: 16px; text-align: center;">
+            <button type="button" @click="dismissLogin" class="btn btn-secondary btn-block" style="border-color: rgba(255,255,255,0.15); color: #cbd5e1; background: rgba(255,255,255,0.03);">
+              Voltar ao Mapa (Modo Anônimo)
+            </button>
+          </div>
         </form>
 
         <!-- Mode 3: Forgot Password -->
@@ -1094,6 +1319,11 @@ async function toggleAfetado(id) {
           <button type="submit" class="btn btn-primary btn-block">Solicitar Código</button>
           <div class="auth-links">
             <a href="#" @click.prevent="authMode = 'login'">Voltar ao Login</a>
+          </div>
+          <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.10); padding-top: 16px; text-align: center;">
+            <button type="button" @click="dismissLogin" class="btn btn-secondary btn-block" style="border-color: rgba(255,255,255,0.15); color: #cbd5e1; background: rgba(255,255,255,0.03);">
+              Voltar ao Mapa (Modo Anônimo)
+            </button>
           </div>
         </form>
 
@@ -1114,13 +1344,18 @@ async function toggleAfetado(id) {
           <div class="auth-links">
             <a href="#" @click.prevent="authMode = 'login'">Cancelar e Voltar</a>
           </div>
+          <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.10); padding-top: 16px; text-align: center;">
+            <button type="button" @click="dismissLogin" class="btn btn-secondary btn-block" style="border-color: rgba(255,255,255,0.15); color: #cbd5e1; background: rgba(255,255,255,0.03);">
+              Voltar ao Mapa (Modo Anônimo)
+            </button>
+          </div>
         </form>
       </div>
     </div>
     <div class="auth-right"></div>
   </div>
 
-  <!-- 2. CORE APPLICATION (authenticated) -->
+  <!-- 2. CORE APPLICATION -->
   <div v-else class="app-container">
     
     <!-- Sidebar / Controle -->
@@ -1132,8 +1367,14 @@ async function toggleAfetado(id) {
           </div>
         </div>
         <div class="user-meta-row">
-          <span class="user-email-tag" :title="userEmail">{{ userEmail }}</span>
-          <button class="btn-logout" @click="handleLogout" title="Sair">Sair</button>
+          <template v-if="isAuthenticated">
+            <span class="user-email-tag" :title="userEmail">{{ userEmail }}</span>
+            <button class="btn-logout" @click="handleLogout" title="Sair">Sair</button>
+          </template>
+          <template v-else>
+            <span class="user-email-tag" style="background: rgba(255, 255, 255, 0.05); color: #94a3b8;">Modo Anônimo</span>
+            <button class="btn-login-redirect" @click="goToLogin" title="Entrar">Entrar</button>
+          </template>
         </div>
       </header>
 
@@ -1233,6 +1474,10 @@ async function toggleAfetado(id) {
                 </span>
               </div>
               <p class="card-desc">{{ item.description }}</p>
+              <div class="card-creator" style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Criado por: <strong>{{ item.creator_name || 'Anônimo' }}</strong></span>
+              </div>
               <div class="card-meta">
                 <span class="card-category-tag">
                   {{ getCategoryEmoji(item.category) }} 
@@ -1250,7 +1495,7 @@ async function toggleAfetado(id) {
               <!-- Botão Sou Afetado e Estatísticas Administrativas -->
               <div class="card-actions-row" @click.stop>
                 <button 
-                  v-if="item.user_id !== userId"
+                  v-if="!isAuthenticated || item.user_id !== userId"
                   @click.stop="toggleAfetado(item.id)"
                   class="btn-afetado"
                   :class="{ active: item.is_affected }"
@@ -1259,7 +1504,7 @@ async function toggleAfetado(id) {
                   <svg v-else xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                   {{ item.is_affected ? 'Declarado Afetado' : 'Sou Afetado' }}
                 </button>
-                <span v-else class="owner-badge">
+                <span v-else-if="isAuthenticated && item.user_id === userId" class="owner-badge">
                   Criada por você
                 </span>
 
@@ -1308,7 +1553,8 @@ async function toggleAfetado(id) {
                 type="button" 
                 class="btn-current-location" 
                 @click="useCurrentLocationForForm"
-                :disabled="isLocating"
+                :disabled="isLocating || isLocationPermissionDenied"
+                :title="isLocationPermissionDenied ? 'Acesso à localização negado pelo navegador. Ative nas configurações.' : ''"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" :style="{ animation: isLocating ? 'spin 1s linear infinite' : 'none' }">
                   <circle cx="12" cy="12" r="10"/>
@@ -1391,7 +1637,14 @@ async function toggleAfetado(id) {
 
             <div class="form-actions">
               <button type="button" class="btn btn-ghost" @click="switchTab('list')">Cancelar</button>
-              <button v-if="!toggles.read_only_mode || userRole === 'admin'" type="submit" class="btn btn-primary">Registrar Ocorrência</button>
+              <button 
+                v-if="!toggles.read_only_mode || userRole === 'admin'" 
+                type="submit" 
+                class="btn btn-primary"
+                :disabled="!isFormValid"
+              >
+                Registrar Ocorrência
+              </button>
             </div>
           </form>
         </div>
@@ -1518,6 +1771,73 @@ async function toggleAfetado(id) {
       </div>
     </main>
     
+  </div>
+
+  <!-- Modal de Alerta / Confirmação Coesivo -->
+  <div v-if="modalState.isOpen" class="modal-backdrop">
+    <div class="modal-card scale-in">
+      <div class="modal-header" :class="modalState.type">
+        <span class="modal-icon">
+          <svg v-if="modalState.type === 'success'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <svg v-else-if="modalState.type === 'error'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <svg v-else-if="modalState.type === 'warning'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        </span>
+        <h3>{{ modalState.title }}</h3>
+      </div>
+      <div class="modal-body">
+        <p>{{ modalState.message }}</p>
+      </div>
+      <div class="modal-actions">
+        <template v-if="modalState.type === 'confirm'">
+          <button type="button" class="btn btn-secondary btn-small" @click="handleModalCancel">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-small" @click="handleModalConfirm">Confirmar</button>
+        </template>
+        <template v-else>
+          <button type="button" class="btn btn-primary btn-small" @click="closeAlertModal">OK</button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Banimento Bloqueador -->
+  <div v-if="isBannedModalActive" class="modal-backdrop ban-backdrop">
+    <div class="modal-card ban-card scale-in">
+      <div class="modal-header error">
+        <span class="modal-icon warning-pulse">🛡️</span>
+        <h3>Acesso Bloqueado</h3>
+      </div>
+      <div class="modal-body">
+        <p class="ban-reason">{{ banMessage }}</p>
+        
+        <div v-if="banCountdown !== 'Permanente'" class="countdown-wrapper">
+          <span class="countdown-label">Tempo restante de banimento</span>
+          <div class="countdown-timer">{{ banCountdown }}</div>
+        </div>
+        <div v-else class="countdown-wrapper permanent">
+          <div class="countdown-timer">Banimento Permanente</div>
+        </div>
+      </div>
+      <div class="modal-actions" style="justify-content: center; margin-top: 16px;">
+        <button 
+          v-if="banCountdown === 'Expirado'" 
+          type="button"
+          class="btn btn-primary btn-block" 
+          @click="handleBanEnd"
+        >
+          Fazer Login Novamente
+        </button>
+        <button 
+          v-else 
+          type="button"
+          class="btn btn-secondary btn-block" 
+          @click="handleLogoutAndCloseBan"
+          style="margin-top: 0;"
+        >
+          Sair da Conta (Modo Anônimo)
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
