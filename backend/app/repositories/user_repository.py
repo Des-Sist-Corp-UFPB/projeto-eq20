@@ -33,6 +33,19 @@ class UserRepository:
         self.db.refresh(user)
         return user
 
+    def create_with_hash(self, email: str, hashed_password: str, role: str = "user") -> UserModel:
+        """Cria um novo usuário no banco usando uma senha já hasheada."""
+        user = UserModel(
+            email=email,
+            hashed_password=hashed_password,
+            role=role,
+        )
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+
     def set_reset_token(self, user: UserModel, token: str) -> None:
         """Define o token de reset de senha."""
         user.reset_token = token

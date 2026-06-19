@@ -53,7 +53,7 @@ def setup_db():
 client = TestClient(app)
 
 def test_register_and_login():
-    # Register new user
+    # 1. Register new user (returns message that code was sent)
     response = client.post(
         "/api/auth/register",
         json={"email": "novo.cidadao@teste.com", "password": "novasenha123"}
@@ -61,7 +61,30 @@ def test_register_and_login():
     assert response.status_code == 200
     assert response.json()["email"] == "novo.cidadao@teste.com"
 
-    # Login and check JWT Token
+    # 2. Get code from database
+    from app.models.pending_registration import PendingRegistrationModel
+    db = TestingSessionLocal()
+    pending = db.query(PendingRegistrationModel).filter_by(email="novo.cidadao@teste.com").first()
+    assert pending is not None
+    code = pending.code
+    db.close()
+
+    # 3. Try to verify with an incorrect code (should fail)
+    response = client.post(
+        "/api/auth/verify-register",
+        json={"email": "novo.cidadao@teste.com", "code": "000000"}
+    )
+    assert response.status_code == 400
+
+    # 4. Verify with the correct code (should succeed)
+    response = client.post(
+        "/api/auth/verify-register",
+        json={"email": "novo.cidadao@teste.com", "code": code}
+    )
+    assert response.status_code == 200
+    assert response.json()["email"] == "novo.cidadao@teste.com"
+
+    # 5. Login and check JWT Token
     response = client.post(
         "/api/auth/login",
         data={"username": "novo.cidadao@teste.com", "password": "novasenha123"}
@@ -260,6 +283,17 @@ def test_authorization_and_ban():
         "/api/auth/register",
         json={"email": "outro@teste.com", "password": "outrasenha123"}
     )
+    from app.models.pending_registration import PendingRegistrationModel
+    db = TestingSessionLocal()
+    pending = db.query(PendingRegistrationModel).filter_by(email="outro@teste.com").first()
+    assert pending is not None
+    code = pending.code
+    db.close()
+    
+    client.post(
+        "/api/auth/verify-register",
+        json={"email": "outro@teste.com", "code": code}
+    )
     outro_login = client.post(
         "/api/auth/login",
         data={"username": "outro@teste.com", "password": "outrasenha123"}
@@ -321,6 +355,17 @@ def test_occurrence_prioritization_and_affected():
     client.post(
         "/api/auth/register",
         json={"email": "user2@exemplo.com", "password": "password123"}
+    )
+    from app.models.pending_registration import PendingRegistrationModel
+    db = TestingSessionLocal()
+    pending = db.query(PendingRegistrationModel).filter_by(email="user2@exemplo.com").first()
+    assert pending is not None
+    code = pending.code
+    db.close()
+
+    client.post(
+        "/api/auth/verify-register",
+        json={"email": "user2@exemplo.com", "code": code}
     )
     login_resp2 = client.post(
         "/api/auth/login",

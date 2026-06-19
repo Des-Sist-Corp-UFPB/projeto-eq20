@@ -56,3 +56,11 @@ class ResetPasswordRequest(BaseModel):
     email: EmailStr
     token: str
     new_password: str = Field(..., min_length=6)
+
+
+class UserVerifyRegister(BaseModel):
+    """Schema para verificação de registro pendente."""
+
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)
+

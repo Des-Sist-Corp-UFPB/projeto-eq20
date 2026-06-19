@@ -12,6 +12,7 @@ from app.schemas.user import (
     TokenResponse,
     UserRegister,
     UserResponse,
+    UserVerifyRegister,
 )
 from app.security.dependencies import get_current_user
 from app.services.auth_service import AuthService
@@ -19,10 +20,16 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register")
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
     service = AuthService(db)
     return service.register(user)
+
+
+@router.post("/verify-register", response_model=UserResponse)
+def verify_register_user(req: UserVerifyRegister, db: Session = Depends(get_db)):
+    service = AuthService(db)
+    return service.verify_register(email=req.email, code=req.code)
 
 
 @router.post("/login", response_model=TokenResponse)

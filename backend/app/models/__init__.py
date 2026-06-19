@@ -8,10 +8,13 @@ from app.models.base import Base
 from app.models.user import UserModel
 from app.models.ocorrencia import OcorrenciaModel
 from app.models.feature_toggle import FeatureToggleModel
+from app.models.pending_registration import PendingRegistrationModel
 
 __all__ = [
     "Base",
     "UserModel",
     "OcorrenciaModel",
     "FeatureToggleModel",
+    "PendingRegistrationModel",
 ]
+

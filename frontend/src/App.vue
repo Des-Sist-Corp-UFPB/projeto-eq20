@@ -89,6 +89,7 @@ const inputPassword = ref('');
 const inputConfirmPassword = ref('');
 const resetToken = ref('');
 const resetPasswordVal = ref('');
+const verificationCode = ref('');
 const authMessage = ref('');
 const authError = ref('');
 
@@ -631,10 +632,39 @@ async function handleRegister() {
       throw new Error(data.detail || 'Erro ao registrar conta.');
     }
 
+    authMessage.value = 'Um código de verificação foi enviado para o seu e-mail.';
+    authMode.value = 'verify';
+    verificationCode.value = '';
+
+  } catch (err) {
+    authError.value = err.message;
+  }
+}
+
+async function handleVerifyRegister() {
+  authError.value = '';
+  authMessage.value = '';
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/verify-register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: inputEmail.value,
+        code: verificationCode.value
+      })
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.detail || 'Código de verificação incorreto ou expirado.');
+    }
+
     authMessage.value = 'Conta cadastrada com sucesso! Faça seu login.';
     authMode.value = 'login';
     inputPassword.value = '';
     inputConfirmPassword.value = '';
+    verificationCode.value = '';
 
   } catch (err) {
     authError.value = err.message;
@@ -1370,6 +1400,26 @@ async function toggleAfetado(id) {
           <button type="submit" class="btn btn-primary btn-block">Cadastrar</button>
           <div class="auth-links">
             <a href="#" @click.prevent="authMode = 'login'">Já tenho uma conta (Login)</a>
+          </div>
+          <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.10); padding-top: 16px; text-align: center;">
+            <button type="button" @click="dismissLogin" class="btn btn-secondary btn-block" style="border-color: rgba(255,255,255,0.15); color: #cbd5e1; background: rgba(255,255,255,0.03);">
+              Voltar ao Mapa (Modo Anônimo)
+            </button>
+          </div>
+        </form>
+
+        <!-- Mode 5: Verify Registration -->
+        <form v-if="authMode === 'verify'" @submit.prevent="handleVerifyRegister">
+          <div class="alert-info-box" style="margin-bottom:12px; font-size:11px; color: #cbd5e1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 8px; border-radius: 4px;">
+            <span>Insira o código de 6 dígitos enviado para o seu e-mail.</span>
+          </div>
+          <div class="form-group">
+            <label>Código de Verificação</label>
+            <input type="text" required v-model="verificationCode" placeholder="Ex: 123456" maxlength="6">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Confirmar e Criar Conta</button>
+          <div class="auth-links">
+            <a href="#" @click.prevent="authMode = 'register'">Voltar para Cadastro</a>
           </div>
           <div style="margin-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.10); padding-top: 16px; text-align: center;">
             <button type="button" @click="dismissLogin" class="btn btn-secondary btn-block" style="border-color: rgba(255,255,255,0.15); color: #cbd5e1; background: rgba(255,255,255,0.03);">

@@ -8,9 +8,12 @@ from sqlalchemy.orm import Session
 from app.config.settings import settings
 from app.models.user import UserModel
 from app.repositories.user_repository import UserRepository
+from app.repositories.pending_registration_repository import PendingRegistrationRepository
+from app.services.email_service import EmailService
 from app.schemas.user import UserRegister, TokenResponse
 from app.security.jwt import create_access_token
-from app.security.password import verify_password
+from app.security.password import verify_password, get_password_hash
+import random
 
 
 class AuthService:
@@ -18,9 +21,10 @@ class AuthService:
 
     def __init__(self, db: Session) -> None:
         self.user_repo = UserRepository(db)
+        self.pending_repo = PendingRegistrationRepository(db)
 
-    def register(self, user_data: UserRegister) -> UserModel:
-        """Registra um novo usuário."""
+    def register(self, user_data: UserRegister) -> dict:
+        """Registra uma solicitação pendente de usuário e envia e-mail."""
         existing = self.user_repo.get_by_email(user_data.email)
         if existing:
             raise HTTPException(
@@ -28,11 +32,78 @@ class AuthService:
                 detail="Este e-mail já está cadastrado.",
             )
 
-        return self.user_repo.create(
+        # Gera código de 6 dígitos
+        code = str(random.randint(100000, 999999))
+        hashed_password = get_password_hash(user_data.password)
+
+        # Salva ou atualiza registro pendente
+        self.pending_repo.create_or_update(
             email=user_data.email,
-            password=user_data.password,
+            password_hash=hashed_password,
+            code=code,
+        )
+
+        # Dispara e-mail via Resend
+        email_sent = EmailService.send_verification_email(user_data.email, code)
+        if not email_sent:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Erro ao enviar e-mail de verificação. Tente novamente mais tarde.",
+            )
+
+        return {
+            "message": "Código de verificação enviado para o seu e-mail.",
+            "email": user_data.email
+        }
+
+    def verify_register(self, email: str, code: str) -> UserModel:
+        """Valida o código de verificação e conclui a criação da conta do usuário."""
+        # 1. Verifica se já está cadastrado (segurança extra)
+        existing = self.user_repo.get_by_email(email)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Este e-mail já está cadastrado.",
+            )
+
+        # 2. Busca registro pendente
+        pending = self.pending_repo.get_by_email(email)
+        if not pending:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nenhum registro de cadastro pendente encontrado para este e-mail.",
+            )
+
+        # 3. Valida código
+        if pending.code != code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Código de verificação inválido.",
+            )
+
+        # 4. Valida expiração
+        from datetime import timezone
+        expires_at = pending.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Código de verificação expirado. Solicite o cadastro novamente.",
+            )
+
+        # 5. Cria usuário definitivo
+        user = self.user_repo.create_with_hash(
+            email=pending.email,
+            hashed_password=pending.hashed_password,
             role="user",
         )
+
+        # 6. Remove registro pendente
+        self.pending_repo.delete(pending)
+
+        return user
 
     def login(self, email: str, password: str) -> dict:
         """Autentica um usuário e retorna o token JWT."""
