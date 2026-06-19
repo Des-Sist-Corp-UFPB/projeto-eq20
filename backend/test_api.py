@@ -470,3 +470,56 @@ def test_occurrence_prioritization_and_affected():
     assert occ_a_admin_2["affected_count"] == 0
 
 
+def test_audit_logs():
+    # 1. Try to fetch audit logs unauthenticated (must fail)
+    response = client.get("/api/admin/audit-logs")
+    assert response.status_code == 401
+
+    # 2. Login as normal user and try to fetch (must fail - 403)
+    user_login = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    user_token = user_login.json()["access_token"]
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+    response = client.get("/api/admin/audit-logs", headers=user_headers)
+    assert response.status_code == 403
+
+    # 3. Login as admin
+    admin_login = client.post(
+        "/api/auth/login",
+        data={"username": "admin@riou.com", "password": "admin123"}
+    )
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 4. Fetch audit logs (should pass)
+    response = client.get("/api/admin/audit-logs", headers=admin_headers)
+    assert response.status_code == 200
+    logs = response.json()
+    assert isinstance(logs, list)
+    
+    # In setup_db or our login calls, there should be LOGIN actions
+    login_logs = [l for l in logs if l["action"] == "LOGIN"]
+    assert len(login_logs) >= 1
+
+    # 5. Admin updates a feature toggle
+    toggle_resp = client.post(
+        "/api/admin/toggles",
+        json={"key": "read_only_mode", "value": True},
+        headers=admin_headers
+    )
+    assert toggle_resp.status_code == 200
+
+    # 6. Fetch logs again and verify the action ADMIN_TOGGLE_UPDATE is recorded
+    response = client.get("/api/admin/audit-logs", headers=admin_headers)
+    assert response.status_code == 200
+    logs = response.json()
+    toggle_logs = [l for l in logs if l["action"] == "ADMIN_TOGGLE_UPDATE"]
+    assert len(toggle_logs) == 1
+    assert toggle_logs[0]["resource"] == "feature_toggle"
+    assert toggle_logs[0]["resource_id"] == "read_only_mode"
+    assert "True" in toggle_logs[0]["details"]
+
+
+

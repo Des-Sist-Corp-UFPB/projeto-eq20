@@ -9,8 +9,10 @@ from app.database.session import get_db
 from app.models.user import UserModel
 from app.schemas.feature_toggle import ToggleResponse
 from app.schemas.user import UserResponse, BanUserRequest
+from app.schemas.audit_log import AuditLogResponse
 from app.security.dependencies import get_current_admin
 from app.services.admin_service import AdminService
+from app.services.audit_log_service import AuditLogService
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -32,7 +34,7 @@ def update_toggle(
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
-    return service.update_toggle(key=key, value=value)
+    return service.update_toggle(key=key, value=value, admin_user=current_user)
 
 
 @router.post("/batch-resolve")
@@ -41,7 +43,7 @@ def batch_resolve_occurrences(
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
-    return service.batch_resolve()
+    return service.batch_resolve(admin_user=current_user)
 
 
 @router.get("/users", response_model=List[UserResponse])
@@ -61,7 +63,7 @@ def ban_user(
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
-    return service.ban_user(user_id=user_id, duration_minutes=req.duration_minutes)
+    return service.ban_user(user_id=user_id, duration_minutes=req.duration_minutes, admin_user=current_user)
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -71,5 +73,14 @@ def delete_user(
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
-    service.delete_user(user_id=user_id)
+    service.delete_user(user_id=user_id, admin_user=current_user)
     return None
+
+
+@router.get("/audit-logs", response_model=List[AuditLogResponse])
+def list_audit_logs(
+    current_user: UserModel = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    service = AuditLogService(db)
+    return service.list_logs()

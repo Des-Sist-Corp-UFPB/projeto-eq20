@@ -103,6 +103,21 @@ class AuthService:
         # 6. Remove registro pendente
         self.pending_repo.delete(pending)
 
+        # 7. Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.user_repo.db)
+            audit_service.log(
+                action="REGISTER",
+                resource="user",
+                resource_id=str(user.id),
+                user_id=user.id,
+                user_email=user.email,
+                details=f"Cadastro de usuário '{user.email}' verificado e ativado com sucesso."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (cadastro): {e}")
+
         return user
 
     def login(self, email: str, password: str) -> dict:
@@ -133,6 +148,21 @@ class AuthService:
             expires_delta=access_token_expires,
         )
 
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.user_repo.db)
+            audit_service.log(
+                action="LOGIN",
+                resource="user",
+                resource_id=str(user.id),
+                user_id=user.id,
+                user_email=user.email,
+                details=f"Login realizado com sucesso."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (login): {e}")
+
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -159,6 +189,21 @@ class AuthService:
         print(f"Redefinition parameters: ?email={user.email}&token={reset_token}")
         print("=" * 80 + "\n")
 
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.user_repo.db)
+            audit_service.log(
+                action="PASSWORD_FORGOT",
+                resource="user",
+                resource_id=str(user.id),
+                user_id=user.id,
+                user_email=user.email,
+                details="Solicitação de recuperação de senha gerada."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (recuperação de senha): {e}")
+
         return {
             "message": "Caso o e-mail exista, um código de redefinição foi gerado. Verifique os logs do Docker para resgatar seu link.",
             "debug_token": reset_token,  # Send directly for UI developer ease
@@ -174,4 +219,20 @@ class AuthService:
             )
 
         self.user_repo.update_password(user, new_password)
+
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.user_repo.db)
+            audit_service.log(
+                action="PASSWORD_RESET",
+                resource="user",
+                resource_id=str(user.id),
+                user_id=user.id,
+                user_email=user.email,
+                details="Senha alterada/redefinida com sucesso utilizando token."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (redefinição de senha): {e}")
+
         return {"message": "Senha redefinida com sucesso."}

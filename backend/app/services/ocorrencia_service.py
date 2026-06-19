@@ -102,6 +102,22 @@ class OcorrenciaService:
             type=ocorrencia.type,
             user_id=current_user.id if current_user else None,
         )
+
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.ocorrencia_repo.db)
+            audit_service.log(
+                action="OCORRENCIA_CREATE",
+                resource="ocorrencia",
+                resource_id=str(db_occ.id),
+                user_id=current_user.id if current_user else None,
+                user_email=current_user.email if current_user else "Anônimo",
+                details=f"Ocorrência '{db_occ.title}' criada com sucesso."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (criação de ocorrência): {e}")
+
         return self._populate_dynamic_fields([db_occ], current_user)[0]
 
     def update_status(
@@ -134,6 +150,22 @@ class OcorrenciaService:
             )
 
         updated_occ = self.ocorrencia_repo.update_status(db_ocorrencia, status_update.status)
+
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.ocorrencia_repo.db)
+            audit_service.log(
+                action="OCORRENCIA_STATUS_UPDATE",
+                resource="ocorrencia",
+                resource_id=str(updated_occ.id),
+                user_id=current_user.id,
+                user_email=current_user.email,
+                details=f"Status da ocorrência alterado para '{status_update.status}'."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (atualização de status): {e}")
+
         return self._populate_dynamic_fields([updated_occ], current_user)[0]
 
     def delete_ocorrencia(
@@ -164,7 +196,24 @@ class OcorrenciaService:
                 detail="Sem permissão para excluir esta ocorrência.",
             )
 
+        occ_id = db_ocorrencia.id
+        occ_title = db_ocorrencia.title
         self.ocorrencia_repo.delete(db_ocorrencia)
+
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.ocorrencia_repo.db)
+            audit_service.log(
+                action="OCORRENCIA_DELETE",
+                resource="ocorrencia",
+                resource_id=str(occ_id),
+                user_id=current_user.id,
+                user_email=current_user.email,
+                details=f"Ocorrência '{occ_title}' deletada com sucesso."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (exclusão de ocorrência): {e}")
 
     def toggle_afetado(
         self,
@@ -195,13 +244,31 @@ class OcorrenciaService:
             )
 
         # Toggle da relação
+        is_now_affected = False
         if current_user in db_ocorrencia.afetados:
             db_ocorrencia.afetados.remove(current_user)
         else:
             db_ocorrencia.afetados.append(current_user)
+            is_now_affected = True
 
         self.ocorrencia_repo.db.commit()
         self.ocorrencia_repo.db.refresh(db_ocorrencia)
+
+        # Loga na auditoria
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.ocorrencia_repo.db)
+            action_desc = "declarou-se afetado por" if is_now_affected else "removeu declaração de afetado de"
+            audit_service.log(
+                action="OCORRENCIA_TOGGLE_AFETADO",
+                resource="ocorrencia",
+                resource_id=str(db_ocorrencia.id),
+                user_id=current_user.id,
+                user_email=current_user.email,
+                details=f"Usuário {action_desc} ocorrência '{db_ocorrencia.title}'."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (toggle afetado): {e}")
 
         return self._populate_dynamic_fields([db_ocorrencia], current_user)[0]
 

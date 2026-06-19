@@ -408,6 +408,19 @@ const toggles = ref({
   read_only_mode: false
 });
 const adminUsersList = ref([]);
+const auditLogs = ref([]);
+const auditSearch = ref('');
+
+const filteredAuditLogs = computed(() => {
+  if (!auditSearch.value) return auditLogs.value;
+  const q = auditSearch.value.toLowerCase().trim();
+  return auditLogs.value.filter(log => {
+    return (log.action && log.action.toLowerCase().includes(q)) ||
+           (log.user_email && log.user_email.toLowerCase().includes(q)) ||
+           (log.resource && log.resource.toLowerCase().includes(q)) ||
+           (log.details && log.details.toLowerCase().includes(q));
+  });
+});
 
 // Computed Stats
 const totalCount = computed(() => occurrences.value.length);
@@ -927,6 +940,7 @@ async function saveAdminToggle(key, val) {
     if (key === 'allow_personal_occurrences') {
       fetchOccurrences();
     }
+    fetchAuditLogs();
   } catch (err) {
     console.error("Erro ao salvar toggle admin", err);
   }
@@ -939,6 +953,7 @@ async function executeBatchResolve() {
       const data = await res.json();
       showAlert(data.message, "success");
       fetchOccurrences();
+      fetchAuditLogs();
     } catch (err) {
       showAlert("Erro ao executar ação em lote.", "error");
     }
@@ -952,6 +967,49 @@ async function fetchUsersList() {
   } catch (err) {
     console.error("Erro ao listar usuários", err);
   }
+}
+
+async function fetchAuditLogs() {
+  try {
+    const res = await apiFetch('/admin/audit-logs');
+    if (res.ok) {
+      auditLogs.value = await res.json();
+    }
+  } catch (err) {
+    console.error("Erro ao carregar logs de auditoria", err);
+  }
+}
+
+function formatAuditDate(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+function getAuditActionClass(action) {
+  const acts = {
+    'LOGIN': 'action-auth',
+    'REGISTER': 'action-auth',
+    'PASSWORD_FORGOT': 'action-auth',
+    'PASSWORD_RESET': 'action-auth',
+    'OCORRENCIA_CREATE': 'action-occurrence',
+    'OCORRENCIA_DELETE': 'action-occurrence',
+    'OCORRENCIA_STATUS_UPDATE': 'action-occurrence',
+    'OCORRENCIA_TOGGLE_AFETADO': 'action-occurrence',
+    'ADMIN_TOGGLE_UPDATE': 'action-toggle',
+    'ADMIN_BATCH_RESOLVE': 'action-toggle',
+    'ADMIN_BAN_USER': 'action-admin-danger',
+    'ADMIN_UNBAN_USER': 'action-admin-danger',
+    'ADMIN_DELETE_USER': 'action-admin-danger'
+  };
+  return acts[action] || 'action-default';
 }
 
 async function banUser(userIdVal, durationMinutes) {
@@ -968,6 +1026,7 @@ async function banUser(userIdVal, durationMinutes) {
     }
     showAlert("Usuário banido com sucesso!", "success");
     fetchUsersList();
+    fetchAuditLogs();
   } catch (err) {
     showAlert(err.message, "error");
   }
@@ -987,6 +1046,7 @@ async function unbanUser(userIdVal) {
       }
       showAlert("Usuário desbanido com sucesso!", "success");
       fetchUsersList();
+      fetchAuditLogs();
     } catch (err) {
       showAlert(err.message, "error");
     }
@@ -1005,6 +1065,7 @@ async function deleteUserAccount(userIdVal) {
       }
       showAlert("Conta excluída com sucesso!", "success");
       fetchUsersList();
+      fetchAuditLogs();
     } catch (err) {
       showAlert(err.message, "error");
     }
@@ -1251,6 +1312,7 @@ function switchTab(tabName) {
   }
   if (tabName === 'admin') {
     fetchUsersList();
+    fetchAuditLogs();
   }
   
   if (isMobile()) {
@@ -1870,6 +1932,34 @@ async function toggleAfetado(id) {
                       Excluir
                     </button>
                   </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Audit Log Section -->
+          <div class="admin-section" style="margin-top: 28px; margin-bottom: 24px;">
+            <h3 class="admin-title">Log de Auditoria ({{ filteredAuditLogs.length }})</h3>
+            
+            <div class="search-wrapper" style="margin-bottom: 12px; display: flex; align-items: center; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(255,255,255,0.02); height: 36px; padding: 0 10px;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon" style="color: var(--text-muted);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" v-model="auditSearch" placeholder="Buscar por ação, e-mail ou recurso..." style="background: transparent; border: none; outline: none; color: var(--text-primary); font-size: 12px; margin-left: 8px; width: 100%;">
+            </div>
+            
+            <div class="admin-audit-logs">
+              <div v-if="filteredAuditLogs.length === 0" class="audit-empty-state">
+                Nenhum log encontrado.
+              </div>
+              <div v-for="log in filteredAuditLogs" :key="log.id" class="audit-log-card">
+                <div class="audit-log-header">
+                  <span class="audit-action-badge" :class="getAuditActionClass(log.action)">{{ log.action }}</span>
+                  <span class="audit-timestamp">{{ formatAuditDate(log.timestamp) }}</span>
+                </div>
+                <p class="audit-details">{{ log.details }}</p>
+                <div class="audit-meta">
+                  <span v-if="log.user_email">👤 {{ log.user_email }}</span>
+                  <span v-else>👤 Anônimo</span>
+                  <span v-if="log.resource" class="audit-resource-tag">🏷️ {{ log.resource }} <span v-if="log.resource_id">(ID: {{ log.resource_id }})</span></span>
                 </div>
               </div>
             </div>
