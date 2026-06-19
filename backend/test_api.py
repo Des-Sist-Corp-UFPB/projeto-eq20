@@ -341,6 +341,27 @@ def test_upload_file(monkeypatch):
     assert response.status_code == 200
     assert response.json()["url"] == mock_url
 
+    # Post invalid mime file format (should return 400)
+    file_payload_invalid = {"file": ("test_doc.txt", b"plain text", "text/plain")}
+    response = client.post(
+        "/api/ocorrencias/upload",
+        files=file_payload_invalid,
+        headers=headers
+    )
+    assert response.status_code == 400
+
+    # Post where upload function raises exception (should return 500)
+    def mock_upload_error(*args, **kwargs):
+        raise Exception("Mock storage error")
+    monkeypatch.setattr(app.services.storage_service, "upload_file_to_s3", mock_upload_error)
+    response = client.post(
+        "/api/ocorrencias/upload",
+        files=file_payload,
+        headers=headers
+    )
+    assert response.status_code == 500
+
+
 
 def test_occurrence_prioritization_and_affected():
     # 1. Login Creator (cidadao)
@@ -520,6 +541,369 @@ def test_audit_logs():
     assert toggle_logs[0]["resource"] == "feature_toggle"
     assert toggle_logs[0]["resource_id"] == "read_only_mode"
     assert "True" in toggle_logs[0]["details"]
+
+
+def test_auth_service_extended():
+    db = TestingSessionLocal()
+    from app.services.auth_service import AuthService
+    from app.schemas.user import UserRegister
+    service = AuthService(db)
+
+    # 1. Register user that already exists
+    with pytest.raises(Exception) as excinfo:
+        service.register(UserRegister(email="cidadao@exemplo.com", password="password123"))
+    assert "já está cadastrado" in str(excinfo.value)
+
+    # 2. Verify register with email that has no pending registration
+    with pytest.raises(Exception) as excinfo:
+        service.verify_register("nao_existe@teste.com", "123456")
+    assert "cadastro pendente" in str(excinfo.value)
+
+    # 3. Verify register with wrong code
+    # We must create a pending first
+    service.register(UserRegister(email="novo_pendente@teste.com", password="password123"))
+    with pytest.raises(Exception) as excinfo:
+        service.verify_register("novo_pendente@teste.com", "000000")
+    assert "Código de verificação inválido" in str(excinfo.value)
+
+    # 4. Verify register with expired code
+    from app.models.pending_registration import PendingRegistrationModel
+    from datetime import datetime, timedelta, timezone
+    pending = db.query(PendingRegistrationModel).filter_by(email="novo_pendente@teste.com").first()
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    db.commit()
+    with pytest.raises(Exception) as excinfo:
+        service.verify_register("novo_pendente@teste.com", pending.code)
+    assert "Código de verificação expirado" in str(excinfo.value)
+
+    # 5. Forgot password for user that does not exist (should return generic message without raising)
+    res = service.forgot_password("inexistente_de_verdade@teste.com")
+    assert "Caso o e-mail exista" in res["message"]
+
+    # 6. Forgot password for user that DOES exist (should generate reset token successfully)
+    res_exist = service.forgot_password("cidadao@exemplo.com")
+    assert "Caso o e-mail exista" in res_exist["message"] or "logs do Docker" in res_exist["message"]
+
+    # 7. Reset password with invalid token
+    with pytest.raises(Exception) as excinfo:
+        service.reset_password("cidadao@exemplo.com", "token_invalido", "senha123456")
+    assert "Token de redefinição inválido" in str(excinfo.value)
+
+    # 8. Reset password for user that does not exist
+    with pytest.raises(Exception) as excinfo:
+        service.reset_password("nao_existente_user@teste.com", "any_token", "senha123456")
+    assert "Token de redefinição inválido" in str(excinfo.value)
+
+    # 9. Login with user that doesn't exist
+    with pytest.raises(Exception) as excinfo:
+        service.login("inexistente_de_verdade@teste.com", "senha123")
+    assert "E-mail ou senha incorretos" in str(excinfo.value)
+
+    db.close()
+
+
+def test_admin_service_extended():
+    db = TestingSessionLocal()
+    from app.services.admin_service import AdminService
+    from app.models.user import UserModel
+    service = AdminService(db)
+    
+    admin_user = db.query(UserModel).filter_by(email="admin@riou.com").first()
+
+    # 1. Ban user that does not exist
+    with pytest.raises(Exception) as excinfo:
+        service.ban_user(9999, 60, admin_user)
+    assert "Usuário não encontrado" in str(excinfo.value)
+
+    # 2. Ban an admin
+    with pytest.raises(Exception) as excinfo:
+        service.ban_user(admin_user.id, 60, admin_user)
+    assert "Não é possível banir um administrador" in str(excinfo.value)
+
+    # 3. Delete user that does not exist
+    with pytest.raises(Exception) as excinfo:
+        service.delete_user(9999, admin_user)
+    assert "Usuário não encontrado" in str(excinfo.value)
+
+    # 4. Delete an admin
+    with pytest.raises(Exception) as excinfo:
+        service.delete_user(admin_user.id, admin_user)
+    assert "Não é possível excluir um administrador" in str(excinfo.value)
+
+    # 5. Delete a standard user successfully
+    # Create standard user
+    std_user = service.user_repo.create("std_to_delete@teste.com", "senha123")
+    service.delete_user(std_user.id, admin_user)
+    assert service.user_repo.get_by_id(std_user.id) is None
+
+    db.close()
+
+    # 6. Fetch toggles list using admin client
+    admin_login = client.post(
+        "/api/auth/login",
+        data={"username": "admin@riou.com", "password": "admin123"}
+    )
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    response = client.get("/api/admin/toggles", headers=admin_headers)
+    assert response.status_code == 200
+    assert len(response.json()) > 0
+
+
+def test_ocorrencia_service_extended():
+    # Setup tokens
+    admin_login = client.post(
+        "/api/auth/login",
+        data={"username": "admin@riou.com", "password": "admin123"}
+    )
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    user_login = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    user_token = user_login.json()["access_token"]
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+
+    # 1. Update status of non-existent occurrence
+    response = client.patch(
+        "/api/ocorrencias/9999/status",
+        json={"status": "progresso"},
+        headers=admin_headers
+    )
+    assert response.status_code == 404
+
+    # 2. Delete non-existent occurrence
+    response = client.delete(
+        "/api/ocorrencias/9999",
+        headers=user_headers
+    )
+    assert response.status_code == 404
+
+    # 3. Toggle affected on non-existent occurrence
+    response = client.post(
+        "/api/ocorrencias/9999/toggle-afetado",
+        headers=user_headers
+    )
+    assert response.status_code == 404
+
+    # 4. Read-Only Mode Restrictions
+    # Enable Read-Only Mode
+    client.post(
+        "/api/admin/toggles",
+        json={"key": "read_only_mode", "value": True},
+        headers=admin_headers
+    )
+
+    # Try to create occurrence (should fail 403)
+    response = client.post(
+        "/api/ocorrencias",
+        json={
+            "title": "Buraco no modo somente leitura",
+            "category": "infraestrutura",
+            "description": "Buraco grande",
+            "lat": -7.1355,
+            "lng": -34.8421,
+            "type": "buracos em ruas"
+        },
+        headers=user_headers
+    )
+    assert response.status_code == 403
+
+    # Try to update status as user (should fail 403)
+    response = client.patch(
+        "/api/ocorrencias/1/status",
+        json={"status": "progresso"},
+        headers=user_headers
+    )
+    assert response.status_code == 403
+
+    # Try to toggle affected as user (should fail 403)
+    response = client.post(
+        "/api/ocorrencias/1/toggle-afetado",
+        headers=user_headers
+    )
+    assert response.status_code == 403
+
+    # Try to delete occurrence as user (should fail 403)
+    response = client.delete(
+        "/api/ocorrencias/1",
+        headers=user_headers
+    )
+    assert response.status_code == 403
+
+    # Disable Read-Only Mode
+    client.post(
+        "/api/admin/toggles",
+        json={"key": "read_only_mode", "value": False},
+        headers=admin_headers
+    )
+
+    # 5. Allow Personal Occurrences toggle restrictions
+    # Disable personal occurrences
+    client.post(
+        "/api/admin/toggles",
+        json={"key": "allow_personal_occurrences", "value": False},
+        headers=admin_headers
+    )
+
+    # Try to create security public (segurança pública) occurrence (should fail 403)
+    response = client.post(
+        "/api/ocorrencias",
+        json={
+            "title": "Assalto no ponto",
+            "category": "segurança pública",
+            "description": "Assalto armado",
+            "lat": -7.1355,
+            "lng": -34.8421,
+            "type": "assaltos"
+        },
+        headers=user_headers
+    )
+    assert response.status_code == 403
+
+    # Reset toggle
+    client.post(
+        "/api/admin/toggles",
+        json={"key": "allow_personal_occurrences", "value": True},
+        headers=admin_headers
+    )
+
+
+def test_storage_service_unit(monkeypatch):
+    import boto3
+    from unittest.mock import MagicMock
+    from botocore.exceptions import ClientError
+    from app.services.storage_service import init_s3, upload_file_to_s3
+    
+    mock_s3 = MagicMock()
+    # Mock head_bucket throwing NoSuchBucket 404 ClientError
+    err_response = {"Error": {"Code": "404"}}
+    mock_s3.head_bucket.side_effect = ClientError(err_response, "head_bucket")
+    monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: mock_s3)
+    
+    # Run init_s3
+    init_s3()
+    assert mock_s3.create_bucket.called
+    
+    # Run upload_file_to_s3
+    url = upload_file_to_s3(b"fake image", "image.png", "image/png")
+    assert "image.png" in url
+
+    # Mock head_bucket throwing other ClientError code to test else block
+    err_response_other = {"Error": {"Code": "500"}}
+    mock_s3.head_bucket.side_effect = ClientError(err_response_other, "head_bucket")
+    with pytest.raises(ClientError):
+        init_s3()
+
+
+def test_email_service_unit(monkeypatch):
+    from app.config.settings import settings
+    from app.services.email_service import EmailService
+    import httpx
+    
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "real_resend_api_key_test")
+    
+    # Success response mock
+    mock_resp_success = httpx.Response(200, json={"id": "mock_id"})
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: mock_resp_success)
+    assert EmailService.send_verification_email("email@teste.com", "123456") is True
+    
+    # Failure response mock (fallback mechanism handles it and returns True)
+    mock_resp_fail = httpx.Response(500, text="Internal Error")
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: mock_resp_fail)
+    assert EmailService.send_verification_email("email@teste.com", "123456") is True
+
+    # Exception response mock (fallback mechanism handles it and returns True)
+    def raise_connection_err(*args, **kwargs):
+        raise Exception("Connection failed")
+    monkeypatch.setattr(httpx, "post", raise_connection_err)
+    assert EmailService.send_verification_email("email@teste.com", "123456") is True
+
+
+def test_seed_database():
+    db = TestingSessionLocal()
+    from app.database.seed import seed_database, init_db_with_retry
+    # Clear occurrences to test seed occurrences block
+    from app.models.ocorrencia import OcorrenciaModel, ocorrencia_afetados
+    db.execute(ocorrencia_afetados.delete())
+    db.query(OcorrenciaModel).delete()
+    db.commit()
+
+    seed_database(db)
+    assert db.query(OcorrenciaModel).count() > 0
+    db.close()
+
+    # Test init_db_with_retry
+    init_db_with_retry()
+
+
+def test_ping_and_spa():
+    response = client.get("/ping")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_dependencies_unauthorized():
+    from app.security.dependencies import get_current_user, get_current_user_optional
+    
+    # Try invalid jwt
+    with pytest.raises(Exception):
+        get_current_user(token="invalid_token", db=TestingSessionLocal())
+        
+    # Try valid jwt but non-existent user
+    from app.security.jwt import create_access_token
+    token = create_access_token({"sub": "non_existent@user.com"})
+    with pytest.raises(Exception):
+        get_current_user(token=token, db=TestingSessionLocal())
+
+    # Try token without sub
+    token_no_sub = create_access_token({})
+    with pytest.raises(Exception):
+        get_current_user(token=token_no_sub, db=TestingSessionLocal())
+    assert get_current_user_optional(token=token_no_sub, db=TestingSessionLocal()) is None
+        
+    # Try optional user with invalid token (should return None, not raise)
+    assert get_current_user_optional(token="invalid_token", db=TestingSessionLocal()) is None
+    
+    # Try optional user with valid token but non-existent email (should return None, not raise)
+    assert get_current_user_optional(token=token, db=TestingSessionLocal()) is None
+    
+    # Try optional user with banned user (should raise 403)
+    db = TestingSessionLocal()
+    from app.models.user import UserModel
+    from datetime import datetime, UTC, timedelta
+    user = db.query(UserModel).filter_by(email="cidadao@exemplo.com").first()
+    user.banned_until = datetime.now(UTC) + timedelta(minutes=60)
+    db.commit()
+    db.close()
+    
+    user_token = create_access_token({"sub": "cidadao@exemplo.com"})
+    with pytest.raises(Exception) as excinfo:
+        get_current_user_optional(token=user_token, db=TestingSessionLocal())
+    assert "banida" in str(excinfo.value)
+    
+    # Unban user
+    db = TestingSessionLocal()
+    user = db.query(UserModel).filter_by(email="cidadao@exemplo.com").first()
+    user.banned_until = None
+    db.commit()
+    db.close()
+
+
+
+def test_jwt_default_expire():
+    from app.security.jwt import create_access_token
+    token = create_access_token({"sub": "test@test.com"})
+    assert token is not None
+
+
+def test_verify_password_exception():
+    from app.security.password import verify_password
+    assert verify_password("plain", None) is False
+
+
 
 
 
