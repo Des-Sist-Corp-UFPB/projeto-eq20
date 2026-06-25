@@ -5,9 +5,9 @@
 | **Data** | 2026-06-25 |
 | **Repositório** | https://github.com/des-sist-corp-ufpb/projeto-eq20 |
 | **Aplicação** | https://eq20.dsc.rodrigor.com |
-| **Período de atividade** | 2026-06-19 → 2026-06-19 |
-| **Total de commits** (sem merges) | 1 |
-| **Integrantes** | Gabriel Calaca Machado (@crowdN) |
+| **Período de atividade** | 2026-06-19 → 2026-06-25 |
+| **Total de commits** (sem merges, branch main) | 2 |
+| **Integrantes** | Gabriel Calaca Machado (@crowdN), Joao Olivio Do Nascimento Filho (@olivionasc) |
 
 ---
 
@@ -77,19 +77,26 @@
 
 ### Resumo
 
-| Usuário | Commits | % commits | Linhas adicionadas | Linhas no código atual | % código atual |
-|---------|---------|-----------|-------------------|----------------------|----------------|
-| Gabriel Calaca Machado (@crowdN) | 1 | 100% | 15.143 | 5.179 | 100% |
+| Usuário | Commits (main) | Commits (GitHub API) | Linhas adicionadas | Linhas no código atual | % código atual |
+|---------|---------------|---------------------|-------------------|----------------------|----------------|
+| Gabriel Calaca Machado (@crowdN) | 1 | **7** ⚠️ | 15.143 | 5.179 | 100% |
+| Joao Olivio Do Nascimento Filho (@olivionasc) | 0 | **19** ⚠️ | 0 | 0 | 0% |
+| *(sem login GitHub)* | 1 | 50% | — | — | — |
+
+> **⚠️ Divergência entre commits locais e GitHub API:**
+> - **@crowdN**: 1 commit(s) na branch `main` vs **7** registrados na API GitHub (commits em branches não mergeadas ou absorvidos via squash-merge sem preservação de autoria).
+> - **@olivionasc**: 0 commit(s) na branch `main` vs **19** registrados na API GitHub (commits em branches não mergeadas ou absorvidos via squash-merge sem preservação de autoria).
+>
 
 ### Contribuição por Camada
 
-| Camada | Total linhas | Gabriel Calaca Machado (@crowdN) |
-|--------|-------------|---------|
-| Controller | 271 | 100% |
-| Frontend | 1.853 | 100% |
-| Repository | 309 | 100% |
-| Service | 801 | 100% |
-| Test | 909 | 100% |
+| Camada | Total linhas | Gabriel Calaca Machado (@crowdN) | Joao Olivio Do Nascimento Filho (@olivionasc) |
+|--------|-------------|---------|---------|
+| Controller | 271 | 100% | 0% |
+| Frontend | 1.853 | 100% | 0% |
+| Repository | 309 | 100% | 0% |
+| Service | 801 | 100% | 0% |
+| Test | 909 | 100% | 0% |
 
 ---
 
@@ -97,18 +104,18 @@
 
 Baseado em `git blame` nos arquivos de controller e service.
 
-| Arquivo | Total linhas | Gabriel Calaca Machado (@crowdN) |
-|---------|-------------|---------|
-| `ocorrencia_service.py` | 274 | 100% |
-| `auth_service.py` | 238 | 100% |
-| `admin_service.py` | 130 | 100% |
-| `ocorrencias.py` | 122 | 100% |
-| `admin.py` | 86 | 100% |
-| `email_service.py` | 64 | 100% |
-| `auth.py` | 62 | 100% |
-| `storage_service.py` | 58 | 100% |
-| `audit_log_service.py` | 36 | 100% |
-| `__init__.py` | 2 | 100% |
+| Arquivo | Total linhas | Gabriel Calaca Machado (@crowdN) | Joao Olivio Do Nascimento Filho (@olivionasc) |
+|---------|-------------|---------|---------|
+| `ocorrencia_service.py` | 274 | 100% | 0% |
+| `auth_service.py` | 238 | 100% | 0% |
+| `admin_service.py` | 130 | 100% | 0% |
+| `ocorrencias.py` | 122 | 100% | 0% |
+| `admin.py` | 86 | 100% | 0% |
+| `email_service.py` | 64 | 100% | 0% |
+| `auth.py` | 62 | 100% | 0% |
+| `storage_service.py` | 58 | 100% | 0% |
+| `audit_log_service.py` | 36 | 100% | 0% |
+| `__init__.py` | 2 | 100% | 0% |
 
 ---
 
