@@ -271,3 +271,33 @@ O sistema integra-se com dois serviços externos fundamentais para o armazenamen
   Através das seguintes variáveis de ambiente:
   * `RESEND_API_KEY`: Chave de API do serviço Resend (`re_...`). Possui mecanismo de fallback automático: se a chave estiver vazia ou iniciar com `mock_`, o e-mail não é enviado e o código de verificação é apenas impresso nos logs do Docker para desenvolvimento/depuração.
   * `RESEND_FROM_EMAIL`: O endereço de remetente configurado e autorizado para envio no Resend (ex: `verificacao@riou <onboarding@resend.dev>`).
+
+---
+
+## 📈 Testes de Carga e Performance
+
+Realizamos testes de carga automatizados para avaliar a resiliência e o tempo de resposta da API do RIOU sob estresse.
+
+### Cenário de Teste
+O teste simula o comportamento real do usuário utilizando o **k6** e foi executado com as seguintes características:
+* **Usuários Virtuais Simultâneos (VUS)**: 10 VUs ativos.
+* **Duração**: 1 minuto (com subida gradual de 15s, estabilização de 30s e desaquecimento de 15s).
+* **Rotas Testadas**:
+  1. `GET /ping` (Healthcheck público)
+  2. `GET /api/ocorrencias` (Leitura da listagem pública)
+  3. `POST /api/auth/login` (Autenticação do usuário e geração de token JWT)
+  4. `GET /api/auth/me` (Consulta de perfil com header `Authorization: Bearer <token>`)
+  5. `POST /api/ocorrencias` (Cadastro de nova ocorrência com dados dinâmicos e token JWT)
+
+### Resultados Obtidos
+* **Requisições Totais**: 1.745 requisições efetuadas (taxa de ~28,7 req/s).
+* **Taxa de Erro (`http_req_failed`)**: **0,00%** (0 falhas de 1745 requisições).
+* **Tempo de Resposta (`http_req_duration`)**:
+  * **Média**: 64,86 ms
+  * **Mediana**: 14,67 ms
+  * **95º Percentil (p95)**: **283,84 ms** (Meta: < 500 ms)
+* **Checks com Sucesso**: 100,00% (3141 checks bem-sucedidos nas validações de status 200/201, estrutura do JSON e dados criados).
+
+### Gargalos Identificados e Oportunidades de Melhoria
+1. **Banco de Dados (Escrita Concorrente)**: A criação concorrente de ocorrências e logs de auditoria no banco PostgreSQL pode ser um gargalo em volumes maiores de carga. Aumentar a capacidade de conexões no pool do SQLAlchemy (`DATABASE_POOL_SIZE` no `.env`) ou implementar uma fila de mensageria assíncrona (como RabbitMQ ou Celery) para processar os logs de auditoria em segundo plano evitaria o bloqueio de requisições de escrita.
+2. **Tempo de Resposta em Redes Móveis**: O `p(95)` está em 283 ms rodando localmente (sem latência de rede externa). Em redes móveis de cidadãos (3G/4G/5G), esse tempo pode aumentar consideravelmente. Recomenda-se adicionar caching de requisições de listagem pública (`GET /api/ocorrencias`) utilizando Redis ou HTTP Cache-Control, visto que a listagem de ocorrências é lida com altíssima frequência em comparação à criação.
