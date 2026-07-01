@@ -60,3 +60,12 @@ def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def get_current_user_profile(current_user: UserModel = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/logout")
+def logout_user(
+    current_user: UserModel = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = AuthService(db)
+    return service.logout(user=current_user)

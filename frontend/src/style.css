@@ -1779,6 +1779,18 @@ input:checked + .slider:before {
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
+.action-auth-logout {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.action-failure {
+    background: rgba(244, 63, 94, 0.15);
+    color: #fb7185;
+    border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
 .action-default {
     background: rgba(255, 255, 255, 0.05);
     color: var(--text-secondary);

@@ -904,6 +904,55 @@ def test_verify_password_exception():
     assert verify_password("plain", None) is False
 
 
+def test_audit_logs_logout_and_failures():
+    # 1. Login to get token
+    login_response = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "senha123"}
+    )
+    assert login_response.status_code == 200
+    user_token = login_response.json()["access_token"]
+    user_headers = {"Authorization": f"Bearer {user_token}"}
+
+    # 2. Call logout
+    logout_resp = client.post("/api/auth/logout", headers=user_headers)
+    assert logout_resp.status_code == 200
+
+    # 3. Call login with failure (wrong password)
+    fail_login_resp = client.post(
+        "/api/auth/login",
+        data={"username": "cidadao@exemplo.com", "password": "wrongpassword"}
+    )
+    assert fail_login_resp.status_code == 401
+
+    # 4. Login as admin
+    admin_login = client.post(
+        "/api/auth/login",
+        data={"username": "admin@riou.com", "password": "admin123"}
+    )
+    assert admin_login.status_code == 200
+    admin_token = admin_login.json()["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 5. Retrieve audit logs
+    audit_resp = client.get("/api/admin/audit-logs", headers=admin_headers)
+    assert audit_resp.status_code == 200
+    logs = audit_resp.json()
+
+    # Verify that LOGIN, LOGOUT, and LOGIN_FAILURE actions are in the logs
+    actions = [log["action"] for log in logs]
+    assert "LOGIN" in actions
+    assert "LOGOUT" in actions
+    assert "LOGIN_FAILURE" in actions
+
+    # Verify that the descriptions are present
+    login_failure_log = next(log for log in logs if log["action"] == "LOGIN_FAILURE")
+    assert "Tentativa de login falhou" in login_failure_log["details"]
+
+    logout_log = next(log for log in logs if log["action"] == "LOGOUT")
+    assert "Logout realizado com sucesso" in logout_log["details"]
+
+
 
 
 

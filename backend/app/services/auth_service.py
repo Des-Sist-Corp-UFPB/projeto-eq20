@@ -27,6 +27,17 @@ class AuthService:
         """Registra uma solicitação pendente de usuário e envia e-mail."""
         existing = self.user_repo.get_by_email(user_data.email)
         if existing:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="REGISTER_FAILURE",
+                    resource="user",
+                    user_email=user_data.email,
+                    details=f"Tentativa de cadastro falhou: o e-mail '{user_data.email}' já está cadastrado."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha de cadastro): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Este e-mail já está cadastrado.",
@@ -46,6 +57,17 @@ class AuthService:
         # Dispara e-mail via Resend
         email_sent = EmailService.send_verification_email(user_data.email, code)
         if not email_sent:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="REGISTER_FAILURE",
+                    resource="user",
+                    user_email=user_data.email,
+                    details=f"Tentativa de cadastro para '{user_data.email}' falhou: erro ao enviar e-mail de verificação."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha de cadastro - envio de email): {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Erro ao enviar e-mail de verificação. Tente novamente mais tarde.",
@@ -61,6 +83,17 @@ class AuthService:
         # 1. Verifica se já está cadastrado (segurança extra)
         existing = self.user_repo.get_by_email(email)
         if existing:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="REGISTER_FAILURE",
+                    resource="user",
+                    user_email=email,
+                    details=f"Confirmação de cadastro falhou: o e-mail '{email}' já está ativo no sistema."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha verificação): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Este e-mail já está cadastrado.",
@@ -69,6 +102,17 @@ class AuthService:
         # 2. Busca registro pendente
         pending = self.pending_repo.get_by_email(email)
         if not pending:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="REGISTER_FAILURE",
+                    resource="user",
+                    user_email=email,
+                    details=f"Confirmação de cadastro falhou: nenhum registro pendente para '{email}'."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha verificação - pendente não encontrado): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Nenhum registro de cadastro pendente encontrado para este e-mail.",
@@ -76,6 +120,17 @@ class AuthService:
 
         # 3. Valida código
         if pending.code != code:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="REGISTER_FAILURE",
+                    resource="user",
+                    user_email=email,
+                    details=f"Confirmação de cadastro falhou: código de verificação incorreto fornecido para '{email}'."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha verificação - código incorreto): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Código de verificação inválido.",
@@ -88,6 +143,17 @@ class AuthService:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
 
         if expires_at < datetime.now(timezone.utc):
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="REGISTER_FAILURE",
+                    resource="user",
+                    user_email=email,
+                    details=f"Confirmação de cadastro falhou: código de verificação expirado para '{email}'."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha verificação - código expirado): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Código de verificação expirado. Solicite o cadastro novamente.",
@@ -124,6 +190,18 @@ class AuthService:
         """Autentica um usuário e retorna o token JWT."""
         user = self.user_repo.get_by_email(email)
         if not user or not verify_password(password, user.hashed_password):
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="LOGIN_FAILURE",
+                    resource="user",
+                    user_id=user.id if user else None,
+                    user_email=email,
+                    details=f"Tentativa de login falhou: e-mail ou senha incorretos para '{email}'."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha login): {e}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="E-mail ou senha incorretos.",
@@ -137,6 +215,19 @@ class AuthService:
                 banned_until = banned_until.replace(tzinfo=timezone.utc)
             if banned_until > datetime.now(UTC):
                 ban_str = banned_until.strftime("%d/%m/%Y %H:%M:%S")
+                try:
+                    from app.services.audit_log_service import AuditLogService
+                    audit_service = AuditLogService(self.user_repo.db)
+                    audit_service.log(
+                        action="LOGIN_FAILURE",
+                        resource="user",
+                        resource_id=str(user.id),
+                        user_id=user.id,
+                        user_email=user.email,
+                        details=f"Tentativa de login falhou: conta do usuário '{user.email}' está banida até {ban_str}."
+                    )
+                except Exception as e:
+                    print(f"Erro ao criar log de auditoria (falha login - banido): {e}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Sua conta está temporariamente banida até {ban_str}.",
@@ -236,3 +327,21 @@ class AuthService:
             print(f"Erro ao criar log de auditoria (redefinição de senha): {e}")
 
         return {"message": "Senha redefinida com sucesso."}
+
+    def logout(self, user: UserModel) -> dict:
+        """Registra o logout do usuário na auditoria."""
+        try:
+            from app.services.audit_log_service import AuditLogService
+            audit_service = AuditLogService(self.user_repo.db)
+            audit_service.log(
+                action="LOGOUT",
+                resource="user",
+                resource_id=str(user.id),
+                user_id=user.id,
+                user_email=user.email,
+                details=f"Logout realizado com sucesso pelo usuário '{user.email}'."
+            )
+        except Exception as e:
+            print(f"Erro ao criar log de auditoria (logout): {e}")
+
+        return {"message": "Logout registrado com sucesso."}

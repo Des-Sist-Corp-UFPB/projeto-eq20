@@ -79,6 +79,18 @@ class OcorrenciaService:
         read_only = self.toggle_repo.get_value("read_only_mode", False)
         is_admin = current_user and current_user.role == "admin"
         if read_only and not is_admin:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_CREATE_FAILURE",
+                    resource="ocorrencia",
+                    user_id=current_user.id if current_user else None,
+                    user_email=current_user.email if current_user else "Anônimo",
+                    details=f"Falha ao criar ocorrência '{ocorrencia.title}': modo somente leitura ativo."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha criação ocorrencia - somente leitura): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
@@ -87,6 +99,18 @@ class OcorrenciaService:
         # Check Personal Occurrences toggle
         allow_personal = self.toggle_repo.get_value("allow_personal_occurrences", True)
         if ocorrencia.category == "segurança pública" and not allow_personal:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_CREATE_FAILURE",
+                    resource="ocorrencia",
+                    user_id=current_user.id if current_user else None,
+                    user_email=current_user.email if current_user else "Anônimo",
+                    details=f"Falha ao criar ocorrência '{ocorrencia.title}': cadastro de segurança pública desativado temporariamente."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha criação ocorrencia - toggle desativado): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="O cadastro de ocorrências de segurança pública foi desativado temporariamente.",
@@ -130,6 +154,19 @@ class OcorrenciaService:
         # Check Read-Only Mode toggle
         read_only = self.toggle_repo.get_value("read_only_mode", False)
         if read_only and current_user.role != "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_STATUS_UPDATE_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(ocorrencia_id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao alterar status da ocorrência {ocorrencia_id}: modo somente leitura ativo."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha status - somente leitura): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
@@ -137,6 +174,19 @@ class OcorrenciaService:
 
         db_ocorrencia = self.ocorrencia_repo.get_by_id(ocorrencia_id)
         if not db_ocorrencia:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_STATUS_UPDATE_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(ocorrencia_id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao alterar status da ocorrência {ocorrencia_id}: ocorrência não encontrada."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha status - não encontrada): {e}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ocorrência não encontrada.",
@@ -144,6 +194,19 @@ class OcorrenciaService:
 
         # Only the admin can update occurrence status
         if current_user.role != "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_STATUS_UPDATE_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(db_ocorrencia.id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao alterar status da ocorrência '{db_ocorrencia.title}': usuário sem permissão de administrador."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha status - sem permissão): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Apenas o administrador pode alterar o estado de uma ocorrência.",
@@ -177,6 +240,19 @@ class OcorrenciaService:
         # Check Read-Only Mode toggle
         read_only = self.toggle_repo.get_value("read_only_mode", False)
         if read_only and current_user.role != "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_DELETE_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(ocorrencia_id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao excluir ocorrência {ocorrencia_id}: modo somente leitura ativo."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha exclusão - somente leitura): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
@@ -184,6 +260,19 @@ class OcorrenciaService:
 
         db_ocorrencia = self.ocorrencia_repo.get_by_id(ocorrencia_id)
         if not db_ocorrencia:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_DELETE_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(ocorrencia_id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao excluir ocorrência {ocorrencia_id}: ocorrência não encontrada."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha exclusão - não encontrada): {e}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ocorrência não encontrada.",
@@ -191,6 +280,19 @@ class OcorrenciaService:
 
         # Only owner or admin can delete
         if db_ocorrencia.user_id != current_user.id and current_user.role != "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_DELETE_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(db_ocorrencia.id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao excluir ocorrência '{db_ocorrencia.title}': usuário sem permissão."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha exclusão - sem permissão): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Sem permissão para excluir esta ocorrência.",
@@ -224,6 +326,19 @@ class OcorrenciaService:
         # Check Read-Only Mode toggle
         read_only = self.toggle_repo.get_value("read_only_mode", False)
         if read_only and current_user.role != "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_TOGGLE_AFETADO_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(ocorrencia_id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao declarar afetado na ocorrência {ocorrencia_id}: modo somente leitura ativo."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha afetado - somente leitura): {e}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
@@ -231,6 +346,19 @@ class OcorrenciaService:
 
         db_ocorrencia = self.ocorrencia_repo.get_by_id(ocorrencia_id)
         if not db_ocorrencia:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_TOGGLE_AFETADO_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(ocorrencia_id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao declarar afetado na ocorrência {ocorrencia_id}: ocorrência não encontrada."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha afetado - não encontrada): {e}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ocorrência não encontrada.",
@@ -238,6 +366,19 @@ class OcorrenciaService:
 
         # O criador da ocorrência não pode se declarar afetado
         if db_ocorrencia.user_id == current_user.id:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.ocorrencia_repo.db)
+                audit_service.log(
+                    action="OCORRENCIA_TOGGLE_AFETADO_FAILURE",
+                    resource="ocorrencia",
+                    resource_id=str(db_ocorrencia.id),
+                    user_id=current_user.id,
+                    user_email=current_user.email,
+                    details=f"Falha ao declarar afetado na ocorrência '{db_ocorrencia.title}': criador da ocorrência não pode declarar-se afetado."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha afetado - criador): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="O criador da ocorrência não pode declarar-se afetado por ela.",

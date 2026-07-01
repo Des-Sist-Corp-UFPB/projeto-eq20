@@ -740,7 +740,20 @@ async function handleResetPassword() {
   }
 }
 
-function handleLogout() {
+async function handleLogout() {
+  if (authToken.value) {
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken.value}`
+        }
+      });
+    } catch (err) {
+      console.error("Erro ao registrar logout:", err);
+    }
+  }
+
   localStorage.removeItem('riou_token');
   localStorage.removeItem('riou_email');
   localStorage.removeItem('riou_role');
@@ -999,6 +1012,7 @@ function getAuditActionClass(action) {
     'REGISTER': 'action-auth',
     'PASSWORD_FORGOT': 'action-auth',
     'PASSWORD_RESET': 'action-auth',
+    'LOGOUT': 'action-auth-logout',
     'OCORRENCIA_CREATE': 'action-occurrence',
     'OCORRENCIA_DELETE': 'action-occurrence',
     'OCORRENCIA_STATUS_UPDATE': 'action-occurrence',
@@ -1007,7 +1021,15 @@ function getAuditActionClass(action) {
     'ADMIN_BATCH_RESOLVE': 'action-toggle',
     'ADMIN_BAN_USER': 'action-admin-danger',
     'ADMIN_UNBAN_USER': 'action-admin-danger',
-    'ADMIN_DELETE_USER': 'action-admin-danger'
+    'ADMIN_DELETE_USER': 'action-admin-danger',
+    'LOGIN_FAILURE': 'action-failure',
+    'REGISTER_FAILURE': 'action-failure',
+    'OCORRENCIA_CREATE_FAILURE': 'action-failure',
+    'OCORRENCIA_STATUS_UPDATE_FAILURE': 'action-failure',
+    'OCORRENCIA_DELETE_FAILURE': 'action-failure',
+    'OCORRENCIA_TOGGLE_AFETADO_FAILURE': 'action-failure',
+    'ADMIN_DELETE_USER_FAILURE': 'action-failure',
+    'ADMIN_BAN_USER_FAILURE': 'action-failure'
   };
   return acts[action] || 'action-default';
 }

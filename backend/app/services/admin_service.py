@@ -64,11 +64,37 @@ class AdminService:
         """Exclui um usuário do sistema."""
         user = self.user_repo.get_by_id(user_id)
         if not user:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="ADMIN_DELETE_USER_FAILURE",
+                    resource="user",
+                    resource_id=str(user_id),
+                    user_id=admin_user.id,
+                    user_email=admin_user.email,
+                    details=f"Falha ao excluir usuário {user_id}: usuário não encontrado."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha delete user - não encontrado): {e}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuário não encontrado.",
             )
         if user.role == "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="ADMIN_DELETE_USER_FAILURE",
+                    resource="user",
+                    resource_id=str(user_id),
+                    user_id=admin_user.id,
+                    user_email=admin_user.email,
+                    details=f"Falha ao excluir usuário '{user.email}': não é possível excluir um administrador."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha delete user - administrador): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Não é possível excluir um administrador.",
@@ -93,11 +119,37 @@ class AdminService:
         """Bane temporariamente ou desbane um usuário."""
         user = self.user_repo.get_by_id(user_id)
         if not user:
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="ADMIN_BAN_USER_FAILURE",
+                    resource="user",
+                    resource_id=str(user_id),
+                    user_id=admin_user.id,
+                    user_email=admin_user.email,
+                    details=f"Falha ao banir/desbanir usuário {user_id}: usuário não encontrado."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha ban user - não encontrado): {e}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Usuário não encontrado.",
             )
         if user.role == "admin":
+            try:
+                from app.services.audit_log_service import AuditLogService
+                audit_service = AuditLogService(self.user_repo.db)
+                audit_service.log(
+                    action="ADMIN_BAN_USER_FAILURE",
+                    resource="user",
+                    resource_id=str(user_id),
+                    user_id=admin_user.id,
+                    user_email=admin_user.email,
+                    details=f"Falha ao banir/desbanir usuário '{user.email}': não é possível banir um administrador."
+                )
+            except Exception as e:
+                print(f"Erro ao criar log de auditoria (falha ban user - administrador): {e}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Não é possível banir um administrador.",
