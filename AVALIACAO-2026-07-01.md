@@ -25,7 +25,9 @@
 
 ## 3. Cobertura de Testes (≥ 85%)
 
-✅ **Atendido** — 90% (pytest) backend (relatório em `cobertura/`, 56 arquivo(s)).
+✅ **Atendido** — backend linhas 90% (pytest) (relatório em `cobertura/`, 56 arquivo(s)).
+
+> Critério: **cobertura de linhas** ≥ 85% (conforme a orientação). As demais métricas (instruções/ramos) são informativas.
 
 > Observação: a cobertura é lida do relatório commitado pela equipe; não é recalculada nesta avaliação.
 
