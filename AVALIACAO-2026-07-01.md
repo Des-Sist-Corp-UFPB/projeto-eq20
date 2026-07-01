@@ -10,7 +10,7 @@
 
 ## 1. Log de Auditoria
 
-✅ **Atendido** — documentado no README e com 96 evidência(s) no código.
+✅ **Atendido** — documentado no README e com 198 evidência(s) no código.
 
 ---
 
@@ -18,9 +18,7 @@
 
 - ✅ **Resend** — declarado no README e comprovado no código (12 ocorrência(s)).
   - Evidência: `backend/app/config/settings.py:49:    # Configurações do Resend`
-- ✅ **AWS S3** — declarado no README e comprovado no código (5 ocorrência(s)).
-  - Evidência: `backend/app/services/storage_service.py:3:import boto3`
-- ✅ **MinIO** — declarado no README e comprovado no código (9 ocorrência(s)).
+- ✅ **Object Storage (S3/MinIO)** — declarado no README e comprovado no código (14 ocorrência(s)).
   - Evidência: `backend/app/config/__init__.py:23:    # Configurações do Object Storage (S3 / MinIO)`
 
 ---
