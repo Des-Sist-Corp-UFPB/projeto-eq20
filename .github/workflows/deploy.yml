@@ -8,11 +8,7 @@ on:
 jobs:
   build-and-deploy:
     name: Build, push e deploy
-<<<<<<< HEAD
-    runs-on: [self-hosted, dsc-selfhosted]
-=======
     runs-on: ubuntu-latest
->>>>>>> e752fa04618c80d53e8a460d0cd62d82451ff64a
     permissions:
       contents: read
       packages: write
