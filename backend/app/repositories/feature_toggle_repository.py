@@ -15,12 +15,18 @@ class FeatureToggleRepository:
 
     def get_value(self, key: str, default: bool = True) -> bool:
         """Retorna o valor de um toggle, ou o default se não existir."""
+        from app.services.cache_service import CacheService
+        cache_key = f"toggle:{key}"
+        cached_val = CacheService.get(cache_key)
+        if cached_val is not None:
+            return cached_val
+
         toggle = self.db.query(FeatureToggleModel).filter(
             FeatureToggleModel.key == key
         ).first()
-        if not toggle:
-            return default
-        return toggle.value
+        val = default if not toggle else toggle.value
+        CacheService.set(cache_key, val, ttl=60)
+        return val
 
     def get_all(self) -> list[FeatureToggleModel]:
         """Lista todos os feature toggles."""
@@ -39,4 +45,11 @@ class FeatureToggleRepository:
 
         self.db.commit()
         self.db.refresh(toggle)
+
+        from app.services.cache_service import CacheService
+        CacheService.delete(f"toggle:{key}")
+        
+        # Também limpamos o cache de ocorrências, pois os toggles podem mudar as regras de exibição/criação
+        CacheService.clear_pattern("occurrences:*")
+
         return toggle

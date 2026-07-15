@@ -13,6 +13,9 @@ from app.models.user import UserModel
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
+from datetime import datetime, UTC, timezone
+from app.services.cache_service import CacheService
+
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
@@ -31,12 +34,37 @@ def get_current_user(
     except pyjwt.PyJWTError:
         raise credentials_exception
 
-    user = db.query(UserModel).filter(UserModel.email == email).first()
-    if user is None:
-        raise credentials_exception
+    # Tenta obter do cache
+    cache_key = f"user:{email}"
+    cached_user = CacheService.get(cache_key)
+    if cached_user:
+        banned_until_val = None
+        if cached_user.get("banned_until"):
+            banned_until_val = datetime.fromisoformat(cached_user["banned_until"])
+        user = UserModel(
+            id=cached_user["id"],
+            email=cached_user["email"],
+            role=cached_user["role"],
+            banned_until=banned_until_val
+        )
+    else:
+        user = db.query(UserModel).filter(UserModel.email == email).first()
+        if user is None:
+            raise credentials_exception
+        
+        # Salva no cache
+        CacheService.set(
+            cache_key,
+            {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+                "banned_until": user.banned_until.isoformat() if user.banned_until else None
+            },
+            ttl=15
+        )
 
     if user.banned_until:
-        from datetime import datetime, UTC, timezone
         banned_until = user.banned_until
         if banned_until.tzinfo is None:
             banned_until = banned_until.replace(tzinfo=timezone.utc)
@@ -81,12 +109,37 @@ def get_current_user_optional(
     except pyjwt.PyJWTError:
         return None
 
-    user = db.query(UserModel).filter(UserModel.email == email).first()
-    if user is None:
-        return None
+    # Tenta obter do cache
+    cache_key = f"user:{email}"
+    cached_user = CacheService.get(cache_key)
+    if cached_user:
+        banned_until_val = None
+        if cached_user.get("banned_until"):
+            banned_until_val = datetime.fromisoformat(cached_user["banned_until"])
+        user = UserModel(
+            id=cached_user["id"],
+            email=cached_user["email"],
+            role=cached_user["role"],
+            banned_until=banned_until_val
+        )
+    else:
+        user = db.query(UserModel).filter(UserModel.email == email).first()
+        if user is None:
+            return None
+        
+        # Salva no cache
+        CacheService.set(
+            cache_key,
+            {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+                "banned_until": user.banned_until.isoformat() if user.banned_until else None
+            },
+            ttl=15
+        )
 
     if user.banned_until:
-        from datetime import datetime, UTC, timezone
         banned_until = user.banned_until
         if banned_until.tzinfo is None:
             banned_until = banned_until.replace(tzinfo=timezone.utc)

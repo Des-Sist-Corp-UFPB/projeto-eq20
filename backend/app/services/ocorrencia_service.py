@@ -12,6 +12,58 @@ from app.repositories.ocorrencia_repository import OcorrenciaRepository
 from app.schemas.ocorrencia import OcorrenciaCreate, OcorrenciaStatusUpdate
 
 
+from datetime import datetime
+from app.services.cache_service import CacheService
+
+def serialize_occurrence(occ: OcorrenciaModel) -> dict:
+    return {
+        "id": occ.id,
+        "title": occ.title,
+        "category": occ.category,
+        "description": occ.description,
+        "lat": occ.lat,
+        "lng": occ.lng,
+        "status": occ.status,
+        "photo": occ.photo,
+        "type": occ.type,
+        "date": occ.date.isoformat() if occ.date else None,
+        "user_id": occ.user_id,
+        "owner": {"email": occ.owner.email} if occ.owner else None,
+        "afetados": [{"id": u.id} for u in occ.afetados] if occ.afetados else []
+    }
+
+def deserialize_occurrence(d: dict) -> OcorrenciaModel:
+    from app.models.user import UserModel
+    owner_model = None
+    if d.get("owner"):
+        owner_model = UserModel(email=d["owner"]["email"])
+        
+    afetados_models = []
+    if d.get("afetados"):
+        afetados_models = [UserModel(id=u["id"]) for u in d["afetados"]]
+        
+    date_val = None
+    if d.get("date"):
+        date_val = datetime.fromisoformat(d["date"])
+        
+    occ = OcorrenciaModel(
+        id=d["id"],
+        title=d["title"],
+        category=d["category"],
+        description=d["description"],
+        lat=d["lat"],
+        lng=d["lng"],
+        status=d["status"],
+        photo=d["photo"],
+        type=d["type"],
+        date=date_val,
+        user_id=d["user_id"],
+        owner=owner_model,
+        afetados=afetados_models
+    )
+    return occ
+
+
 class OcorrenciaService:
     """Lógica de negócio para gerenciamento de ocorrências."""
 
@@ -32,11 +84,18 @@ class OcorrenciaService:
         if not allow_personal:
             exclude_category = "segurança pública"
 
-        occurrences = self.ocorrencia_repo.list_all(
-            category=category,
-            status=status_filter,
-            exclude_category=exclude_category,
-        )
+        cache_key = f"occurrences:list:{category or 'all'}:{status_filter or 'all'}:{exclude_category or 'none'}"
+        cached_data = CacheService.get(cache_key)
+        if cached_data is not None:
+            occurrences = [deserialize_occurrence(d) for d in cached_data]
+        else:
+            occurrences = self.ocorrencia_repo.list_all(
+                category=category,
+                status=status_filter,
+                exclude_category=exclude_category,
+            )
+            serialized = [serialize_occurrence(o) for o in occurrences]
+            CacheService.set(cache_key, serialized, ttl=5)
 
         # Preenche os campos dinâmicos para cada ocorrência
         self._populate_dynamic_fields(occurrences, current_user)
@@ -127,6 +186,9 @@ class OcorrenciaService:
             user_id=current_user.id if current_user else None,
         )
 
+        # Invalida o cache de ocorrências
+        CacheService.clear_pattern("occurrences:*")
+
         # Loga na auditoria
         try:
             from app.services.audit_log_service import AuditLogService
@@ -213,6 +275,9 @@ class OcorrenciaService:
             )
 
         updated_occ = self.ocorrencia_repo.update_status(db_ocorrencia, status_update.status)
+
+        # Invalida o cache de ocorrências
+        CacheService.clear_pattern("occurrences:*")
 
         # Loga na auditoria
         try:
@@ -301,6 +366,9 @@ class OcorrenciaService:
         occ_id = db_ocorrencia.id
         occ_title = db_ocorrencia.title
         self.ocorrencia_repo.delete(db_ocorrencia)
+
+        # Invalida o cache de ocorrências
+        CacheService.clear_pattern("occurrences:*")
 
         # Loga na auditoria
         try:
@@ -394,6 +462,9 @@ class OcorrenciaService:
 
         self.ocorrencia_repo.db.commit()
         self.ocorrencia_repo.db.refresh(db_ocorrencia)
+
+        # Invalida o cache de ocorrências
+        CacheService.clear_pattern("occurrences:*")
 
         # Loga na auditoria
         try:

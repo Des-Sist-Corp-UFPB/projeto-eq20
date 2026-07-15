@@ -16,6 +16,13 @@ services:
     networks:
       - eq20-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: eq20_redis
+    restart: always
+    networks:
+      - eq20-network
+
   app:
     image: ${IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20:latest}
     container_name: eq20_app
@@ -24,6 +31,7 @@ services:
       - "127.0.0.1:8120:8080"
     environment:
       - DATABASE_URL=postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20
+      - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=0rl0ajunSM4HFlUCC2Ha_SECRET_KEY_PROD
       - S3_ENDPOINT_URL=http://minio:9000
       - S3_PUBLIC_ENDPOINT=https://s3.dsc.rodrigor.com
@@ -33,7 +41,28 @@ services:
       - S3_REGION=us-east-1
     depends_on:
       - postgres
+      - redis
+    networks:
+      - eq20-network
 
+  worker:
+    image: ${IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20:latest}
+    container_name: eq20_worker
+    restart: always
+    command: python -m app.worker
+    environment:
+      - DATABASE_URL=postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=0rl0ajunSM4HFlUCC2Ha_SECRET_KEY_PROD
+      - S3_ENDPOINT_URL=http://minio:9000
+      - S3_PUBLIC_ENDPOINT=https://s3.dsc.rodrigor.com
+      - S3_BUCKET=eq20
+      - S3_ACCESS_KEY=eq20
+      - S3_SECRET_KEY=2qMwQDKJ9je55RVcK0YIkd2A
+      - S3_REGION=us-east-1
+    depends_on:
+      - postgres
+      - redis
     networks:
       - eq20-network
 

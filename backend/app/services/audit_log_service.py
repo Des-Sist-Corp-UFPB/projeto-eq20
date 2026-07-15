@@ -20,8 +20,24 @@ class AuditLogService:
         user_id: Optional[int] = None,
         user_email: Optional[str] = None,
         details: Optional[str] = None,
-    ) -> AuditLogModel:
-        """Grava uma entrada de auditoria de forma isolada."""
+    ) -> Optional[AuditLogModel]:
+        """Grava uma entrada de auditoria de forma assíncrona usando Redis, ou fallback síncrono."""
+        from app.services.queue_service import QueueService
+
+        payload = {
+            "action": action,
+            "resource": resource,
+            "resource_id": resource_id,
+            "user_id": user_id,
+            "user_email": user_email,
+            "details": details,
+        }
+
+        # Tenta enfileirar de forma assíncrona
+        if QueueService.enqueue("audit_log", payload):
+            return None
+
+        # Fallback síncrono direto no banco de dados
         return self.repo.create(
             action=action,
             resource=resource,

@@ -41,6 +41,8 @@ class AdminService:
     def batch_resolve(self, admin_user: UserModel) -> dict:
         """Resolve todas as ocorrências pendentes."""
         affected = self.ocorrencia_repo.batch_resolve()
+        from app.services.cache_service import CacheService
+        CacheService.clear_pattern("occurrences:*")
         try:
             from app.services.audit_log_service import AuditLogService
             audit_service = AuditLogService(self.ocorrencia_repo.db)
@@ -101,6 +103,8 @@ class AdminService:
             )
         user_email = user.email
         self.user_repo.delete(user)
+        from app.services.cache_service import CacheService
+        CacheService.delete(f"user:{user_email}")
         try:
             from app.services.audit_log_service import AuditLogService
             audit_service = AuditLogService(self.user_repo.db)
@@ -166,6 +170,8 @@ class AdminService:
             log_details = f"Usuário '{user.email}' banido por {duration_minutes} minutos."
 
         updated_user = self.user_repo.update_ban(user, banned_until)
+        from app.services.cache_service import CacheService
+        CacheService.delete(f"user:{user.email}")
         try:
             from app.services.audit_log_service import AuditLogService
             audit_service = AuditLogService(self.user_repo.db)
