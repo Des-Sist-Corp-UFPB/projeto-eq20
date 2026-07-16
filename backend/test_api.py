@@ -953,6 +953,31 @@ def test_audit_logs_logout_and_failures():
     assert "Logout realizado com sucesso" in logout_log["details"]
 
 
+def test_ping_success():
+    response = client.get("/ping")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"
+
+
+def test_ping_failure():
+    # Define an error-throwing db session dependency
+    def override_get_db_error():
+        class BadSession:
+            def execute(self, *args, **kwargs):
+                raise Exception("Simulated DB connection failure")
+        yield BadSession()
+
+    app.dependency_overrides[get_db] = override_get_db_error
+    try:
+        response = client.get("/ping")
+        assert response.status_code == 500
+        assert "detail" in response.json()
+    finally:
+        # Restore normal get_db override
+        app.dependency_overrides[get_db] = override_get_db
+
+
+
 
 
 

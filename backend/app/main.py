@@ -42,8 +42,17 @@ app.add_middleware(
 
 # Endpoint público de health check
 from datetime import datetime, timezone
+from fastapi import Depends, HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from app.database.session import get_db
+
 @app.get("/ping")
-def ping():
+def ping(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Database connection failed")
     return {
         "status": "ok",
         "service": "eq20",
