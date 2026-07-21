@@ -48,8 +48,8 @@ class Settings:
     S3_REGION: str = os.getenv("S3_REGION", "us-east-1")
 
     # Configurações do Resend
-    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "re_2pvQyR2q_AMjiTpUmCbV95RUG7828SjHp")
-    RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "verificacao@riou <onboarding@resend.dev>")
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "")
 
     # Configurações do Moderador de IA
     AI_API_KEY: str = os.getenv("AI_API_KEY", "")
