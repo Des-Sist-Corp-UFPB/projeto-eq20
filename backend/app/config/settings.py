@@ -51,6 +51,12 @@ class Settings:
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "re_2pvQyR2q_AMjiTpUmCbV95RUG7828SjHp")
     RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "verificacao@riou <onboarding@resend.dev>")
 
+    # Configurações do Moderador de IA
+    AI_API_KEY: str = os.getenv("AI_API_KEY", "")
+    AI_BASE_URL: str = os.getenv("AI_BASE_URL", "")
+    AI_MODEL: str = os.getenv("AI_MODEL", "gpt-4o-mini")
+
+
 
 settings = Settings()
 

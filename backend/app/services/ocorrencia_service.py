@@ -175,16 +175,23 @@ class OcorrenciaService:
                 detail="O cadastro de ocorrências de segurança pública foi desativado temporariamente.",
             )
 
+        # Moderação com Inteligência Artificial
+        from app.services.ai_moderation_service import AIModerationService
+        moderated_title, moderated_description = AIModerationService.moderate(
+            ocorrencia.title, ocorrencia.description
+        )
+
         db_occ = self.ocorrencia_repo.create(
-            title=ocorrencia.title,
+            title=moderated_title,
             category=ocorrencia.category,
-            description=ocorrencia.description,
+            description=moderated_description,
             lat=ocorrencia.lat,
             lng=ocorrencia.lng,
             photo=ocorrencia.photo,
             type=ocorrencia.type,
             user_id=current_user.id if current_user else None,
         )
+
 
         # Invalida o cache de ocorrências
         CacheService.clear_pattern("occurrences:*")

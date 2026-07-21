@@ -300,4 +300,37 @@ O teste simula o comportamento real do usuário utilizando o **k6** e foi execut
 
 ### Gargalos Identificados e Oportunidades de Melhoria
 1. **Banco de Dados (Escrita Concorrente)**: A criação concorrente de ocorrências e logs de auditoria no banco PostgreSQL pode ser um gargalo em volumes maiores de carga. Aumentar a capacidade de conexões no pool do SQLAlchemy (`DATABASE_POOL_SIZE` no `.env`) ou implementar uma fila de mensageria assíncrona (como RabbitMQ ou Celery) para processar os logs de auditoria em segundo plano evitaria o bloqueio de requisições de escrita.
-2. **Tempo de Resposta em Redes Móveis**: O `p(95)` está em 283 ms rodando localmente (sem latência de rede externa). Em redes móveis de cidadãos (3G/4G/5G), esse tempo pode aumentar consideravelmente. Recomenda-se adicionar caching de requisições de listagem pública (`GET /api/ocorrencias`) utilizando Redis ou HTTP Cache-Control, visto que a listagem de ocorrências é lida com altíssima frequência em comparação à criação.
+2. **Tempo de Resposta em Redes Móveis**: The `p(95)` está em 283 ms rodando localmente (sem latência de rede externa). Em redes móveis de cidadãos (3G/4G/5G), esse tempo pode aumentar consideravelmente. Recomenda-se adicionar caching de requisições de listagem pública (`GET /api/ocorrencias`) utilizando Redis ou HTTP Cache-Control, visto que a listagem de ocorrências é lida com altíssima frequência em comparação à criação.
+
+---
+
+## Moderação Inteligente de Ocorrências (IA)
+
+O RIOU possui uma camada inteligente de moderação baseada em Inteligência Artificial (`gpt-4o-mini`) que atua durante o cadastro de novas ocorrências. Esta funcionalidade higieniza, corrige e padroniza os relatos dos cidadãos para garantir uma linguagem formal, clara e apropriada para órgãos de administração pública, antes de armazená-los no banco de dados.
+
+### Como Funciona
+
+1. **Envio do Relato**: O cidadão envia o título e a descrição da ocorrência.
+2. **Higienização de Entrada**: O sistema remove caracteres de controle Unicode invisíveis, normaliza espaços extras e quebras de linha múltiplas, e limita o tamanho máximo dos textos.
+3. **Moderação por IA**: Os textos limpos são enviados ao modelo de linguagem utilizando o SDK oficial da OpenAI.
+   * O modelo analisa se há palavrões, ofensas, linguagem imprópria, repetições, ou relatos sem sentido (ex: "teste", "aaaa", "kkkk").
+   * Se houver inadequações, o texto é reescrito. Se já estiver adequado, é apenas aprimorado.
+   * **Resiliência (Fallback)**: Em caso de falhas de rede, problemas com a API da IA ou retorno de formato inesperado, o sistema registra logs de auditoria detalhados (sem vazar chaves ou endpoints confidenciais) e salva os **textos originais** da ocorrência, garantindo que o fluxo de cadastro nunca seja bloqueado.
+
+### Camadas de Segurança e Guardrails (LLM Security)
+
+Para mitigar riscos de segurança, como ataques de *Prompt Injection* e manipulação comportamental da IA, foram implementadas as seguintes camadas de proteção:
+* **Mensagens Separadas (Camada 1 & 2)**: As instruções de sistema (`SYSTEM_PROMPT`) e as entradas do usuário são mantidas estritamente separadas. A entrada do usuário é formatada em JSON e tratada apenas como dados brutos de entrada, nunca como instruções acionáveis.
+* **Blindagem de Prompt (Camada 3)**: O prompt de sistema instrui explicitamente a IA a ignorar comandos de jailbreak, pedidos de representação de papéis ("Ignore as instruções anteriores", "Atue como..."), explicações ou conversas.
+* **Formatos de Saída Estritos (Camada 4, 5 & 6)**: A IA é configurada para retornar exclusivamente respostas no formato JSON estruturado com os campos `title` e `description`. Qualquer outra estrutura, tipo incorreto (ex: valores não-string) ou tamanho excessivo é sumariamente descartado no backend, acionando o fallback.
+* **Configurações do Modelo**: Temperatura configurada em `0` para máxima previsibilidade e limite de `max_tokens=200` para otimizar custo e evitar geração de conteúdos indesejados.
+
+### Variáveis de Ambiente Necessárias
+
+Para ativar a funcionalidade localmente ou em produção, as seguintes variáveis devem ser adicionadas ao arquivo `.env`:
+
+```env
+AI_API_KEY=sua-chave-api
+AI_BASE_URL=url-do-endpoint-da-api
+AI_MODEL=gpt-4o-mini
+```
