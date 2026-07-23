@@ -41,6 +41,15 @@ services:
       - AI_API_KEY=${AI_API_KEY}
       - AI_BASE_URL=${AI_BASE_URL}
       - AI_MODEL=${AI_MODEL}
+      - OTEL_SERVICE_NAME=dsc-eq20
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.dsc.rodrigor.com
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+      - OTEL_PYTHON_LOG_CORRELATION=true
     depends_on:
       - postgres
       - redis
@@ -51,7 +60,7 @@ services:
     image: ${IMAGE:-ghcr.io/des-sist-corp-ufpb/projeto-eq20:latest}
     container_name: eq20_worker
     restart: always
-    command: python -m app.worker
+    command: opentelemetry-instrument python -m app.worker
     environment:
       - DATABASE_URL=postgresql://eq20:0rl0ajunSM4HFlUCC2Ha@postgres:5432/eq20
       - REDIS_URL=redis://redis:6379/0
@@ -65,6 +74,15 @@ services:
       - AI_API_KEY=${AI_API_KEY}
       - AI_BASE_URL=${AI_BASE_URL}
       - AI_MODEL=${AI_MODEL}
+      - OTEL_SERVICE_NAME=dsc-eq20-worker
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.dsc.rodrigor.com
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+      - OTEL_PYTHON_LOG_CORRELATION=true
     depends_on:
       - postgres
       - redis

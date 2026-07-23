@@ -13,7 +13,14 @@ from app.schemas.ocorrencia import OcorrenciaCreate, OcorrenciaStatusUpdate
 
 
 from datetime import datetime
+import logging
+from opentelemetry import trace
+
 from app.services.cache_service import CacheService
+
+logger = logging.getLogger("app.ocorrencia_service")
+tracer = trace.get_tracer("app.ocorrencia_service")
+
 
 def serialize_occurrence(occ: OcorrenciaModel) -> dict:
     return {
@@ -134,84 +141,100 @@ class OcorrenciaService:
         current_user: Optional[UserModel],
     ) -> OcorrenciaModel:
         """Cria uma nova ocorrência com verificações de toggles e permissões."""
-        # Check Read-Only Mode toggle
-        read_only = self.toggle_repo.get_value("read_only_mode", False)
-        is_admin = current_user and current_user.role == "admin"
-        if read_only and not is_admin:
+        with tracer.start_as_current_span("criar_ocorrencia") as span:
+            span.set_attribute("ocorrencia.category", ocorrencia.category)
+            span.set_attribute("ocorrencia.type", ocorrencia.type)
+            if current_user:
+                span.set_attribute("usuario.id", current_user.id)
+
+            logger.info(f"Criando ocorrência categoria='{ocorrencia.category}' tipo='{ocorrencia.type}'")
+
             try:
-                from app.services.audit_log_service import AuditLogService
-                audit_service = AuditLogService(self.ocorrencia_repo.db)
-                audit_service.log(
-                    action="OCORRENCIA_CREATE_FAILURE",
-                    resource="ocorrencia",
-                    user_id=current_user.id if current_user else None,
-                    user_email=current_user.email if current_user else "Anônimo",
-                    details=f"Falha ao criar ocorrência '{ocorrencia.title}': modo somente leitura ativo."
+                # Check Read-Only Mode toggle
+                read_only = self.toggle_repo.get_value("read_only_mode", False)
+                is_admin = current_user and current_user.role == "admin"
+                if read_only and not is_admin:
+                    try:
+                        from app.services.audit_log_service import AuditLogService
+                        audit_service = AuditLogService(self.ocorrencia_repo.db)
+                        audit_service.log(
+                            action="OCORRENCIA_CREATE_FAILURE",
+                            resource="ocorrencia",
+                            user_id=current_user.id if current_user else None,
+                            user_email=current_user.email if current_user else "Anônimo",
+                            details=f"Falha ao criar ocorrência '{ocorrencia.title}': modo somente leitura ativo."
+                        )
+                    except Exception as e:
+                        print(f"Erro ao criar log de auditoria (falha criação ocorrencia - somente leitura): {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
+                    )
+
+                # Check Personal Occurrences toggle
+                allow_personal = self.toggle_repo.get_value("allow_personal_occurrences", True)
+                if ocorrencia.category == "segurança pública" and not allow_personal:
+                    try:
+                        from app.services.audit_log_service import AuditLogService
+                        audit_service = AuditLogService(self.ocorrencia_repo.db)
+                        audit_service.log(
+                            action="OCORRENCIA_CREATE_FAILURE",
+                            resource="ocorrencia",
+                            user_id=current_user.id if current_user else None,
+                            user_email=current_user.email if current_user else "Anônimo",
+                            details=f"Falha ao criar ocorrência '{ocorrencia.title}': cadastro de segurança pública desativado temporariamente."
+                        )
+                    except Exception as e:
+                        print(f"Erro ao criar log de auditoria (falha criação ocorrencia - toggle desativado): {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="O cadastro de ocorrências de segurança pública foi desativado temporariamente.",
+                    )
+
+                # Moderação com Inteligência Artificial
+                from app.services.ai_moderation_service import AIModerationService
+                moderated_title, moderated_description = AIModerationService.moderate(
+                    ocorrencia.title, ocorrencia.description
                 )
-            except Exception as e:
-                print(f"Erro ao criar log de auditoria (falha criação ocorrencia - somente leitura): {e}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
-            )
 
-        # Check Personal Occurrences toggle
-        allow_personal = self.toggle_repo.get_value("allow_personal_occurrences", True)
-        if ocorrencia.category == "segurança pública" and not allow_personal:
-            try:
-                from app.services.audit_log_service import AuditLogService
-                audit_service = AuditLogService(self.ocorrencia_repo.db)
-                audit_service.log(
-                    action="OCORRENCIA_CREATE_FAILURE",
-                    resource="ocorrencia",
+                db_occ = self.ocorrencia_repo.create(
+                    title=moderated_title,
+                    category=ocorrencia.category,
+                    description=moderated_description,
+                    lat=ocorrencia.lat,
+                    lng=ocorrencia.lng,
+                    photo=ocorrencia.photo,
+                    type=ocorrencia.type,
                     user_id=current_user.id if current_user else None,
-                    user_email=current_user.email if current_user else "Anônimo",
-                    details=f"Falha ao criar ocorrência '{ocorrencia.title}': cadastro de segurança pública desativado temporariamente."
                 )
-            except Exception as e:
-                print(f"Erro ao criar log de auditoria (falha criação ocorrencia - toggle desativado): {e}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="O cadastro de ocorrências de segurança pública foi desativado temporariamente.",
-            )
 
-        # Moderação com Inteligência Artificial
-        from app.services.ai_moderation_service import AIModerationService
-        moderated_title, moderated_description = AIModerationService.moderate(
-            ocorrencia.title, ocorrencia.description
-        )
+                span.set_attribute("ocorrencia.id", db_occ.id)
+                logger.info(f"Ocorrência {db_occ.id} criada com sucesso")
 
-        db_occ = self.ocorrencia_repo.create(
-            title=moderated_title,
-            category=ocorrencia.category,
-            description=moderated_description,
-            lat=ocorrencia.lat,
-            lng=ocorrencia.lng,
-            photo=ocorrencia.photo,
-            type=ocorrencia.type,
-            user_id=current_user.id if current_user else None,
-        )
+                # Invalida o cache de ocorrências
+                CacheService.clear_pattern("occurrences:*")
 
+                # Loga na auditoria
+                try:
+                    from app.services.audit_log_service import AuditLogService
+                    audit_service = AuditLogService(self.ocorrencia_repo.db)
+                    audit_service.log(
+                        action="OCORRENCIA_CREATE",
+                        resource="ocorrencia",
+                        resource_id=str(db_occ.id),
+                        user_id=current_user.id if current_user else None,
+                        user_email=current_user.email if current_user else "Anônimo",
+                        details=f"Ocorrência '{db_occ.title}' criada com sucesso."
+                    )
+                except Exception as e:
+                    print(f"Erro ao criar log de auditoria (criação de ocorrência): {e}")
 
-        # Invalida o cache de ocorrências
-        CacheService.clear_pattern("occurrences:*")
+                return self._populate_dynamic_fields([db_occ], current_user)[0]
+            except Exception as exc:
+                span.record_exception(exc)
+                logger.error(f"Erro ao criar ocorrência: {exc}")
+                raise
 
-        # Loga na auditoria
-        try:
-            from app.services.audit_log_service import AuditLogService
-            audit_service = AuditLogService(self.ocorrencia_repo.db)
-            audit_service.log(
-                action="OCORRENCIA_CREATE",
-                resource="ocorrencia",
-                resource_id=str(db_occ.id),
-                user_id=current_user.id if current_user else None,
-                user_email=current_user.email if current_user else "Anônimo",
-                details=f"Ocorrência '{db_occ.title}' criada com sucesso."
-            )
-        except Exception as e:
-            print(f"Erro ao criar log de auditoria (criação de ocorrência): {e}")
-
-        return self._populate_dynamic_fields([db_occ], current_user)[0]
 
     def update_status(
         self,
@@ -220,88 +243,102 @@ class OcorrenciaService:
         current_user: UserModel,
     ) -> OcorrenciaModel:
         """Atualiza o status de uma ocorrência com verificação de permissões."""
-        # Check Read-Only Mode toggle
-        read_only = self.toggle_repo.get_value("read_only_mode", False)
-        if read_only and current_user.role != "admin":
+        with tracer.start_as_current_span("atualizar_status_ocorrencia") as span:
+            span.set_attribute("ocorrencia.id", ocorrencia_id)
+            span.set_attribute("ocorrencia.novo_status", status_update.status)
+            if current_user:
+                span.set_attribute("usuario.id", current_user.id)
+
+            logger.info(f"Atualizando status da ocorrência id={ocorrencia_id} para status='{status_update.status}'")
+
             try:
-                from app.services.audit_log_service import AuditLogService
-                audit_service = AuditLogService(self.ocorrencia_repo.db)
-                audit_service.log(
-                    action="OCORRENCIA_STATUS_UPDATE_FAILURE",
-                    resource="ocorrencia",
-                    resource_id=str(ocorrencia_id),
-                    user_id=current_user.id,
-                    user_email=current_user.email,
-                    details=f"Falha ao alterar status da ocorrência {ocorrencia_id}: modo somente leitura ativo."
-                )
-            except Exception as e:
-                print(f"Erro ao criar log de auditoria (falha status - somente leitura): {e}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
-            )
+                # Check Read-Only Mode toggle
+                read_only = self.toggle_repo.get_value("read_only_mode", False)
+                if read_only and current_user.role != "admin":
+                    try:
+                        from app.services.audit_log_service import AuditLogService
+                        audit_service = AuditLogService(self.ocorrencia_repo.db)
+                        audit_service.log(
+                            action="OCORRENCIA_STATUS_UPDATE_FAILURE",
+                            resource="ocorrencia",
+                            resource_id=str(ocorrencia_id),
+                            user_id=current_user.id,
+                            user_email=current_user.email,
+                            details=f"Falha ao alterar status da ocorrência {ocorrencia_id}: modo somente leitura ativo."
+                        )
+                    except Exception as e:
+                        print(f"Erro ao criar log de auditoria (falha status - somente leitura): {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="A plataforma está no modo SOMENTE LEITURA por ordem administrativa.",
+                    )
 
-        db_ocorrencia = self.ocorrencia_repo.get_by_id(ocorrencia_id)
-        if not db_ocorrencia:
-            try:
-                from app.services.audit_log_service import AuditLogService
-                audit_service = AuditLogService(self.ocorrencia_repo.db)
-                audit_service.log(
-                    action="OCORRENCIA_STATUS_UPDATE_FAILURE",
-                    resource="ocorrencia",
-                    resource_id=str(ocorrencia_id),
-                    user_id=current_user.id,
-                    user_email=current_user.email,
-                    details=f"Falha ao alterar status da ocorrência {ocorrencia_id}: ocorrência não encontrada."
-                )
-            except Exception as e:
-                print(f"Erro ao criar log de auditoria (falha status - não encontrada): {e}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Ocorrência não encontrada.",
-            )
+                db_ocorrencia = self.ocorrencia_repo.get_by_id(ocorrencia_id)
+                if not db_ocorrencia:
+                    try:
+                        from app.services.audit_log_service import AuditLogService
+                        audit_service = AuditLogService(self.ocorrencia_repo.db)
+                        audit_service.log(
+                            action="OCORRENCIA_STATUS_UPDATE_FAILURE",
+                            resource="ocorrencia",
+                            resource_id=str(ocorrencia_id),
+                            user_id=current_user.id,
+                            user_email=current_user.email,
+                            details=f"Falha ao alterar status da ocorrência {ocorrencia_id}: ocorrência não encontrada."
+                        )
+                    except Exception as e:
+                        print(f"Erro ao criar log de auditoria (falha status - não encontrada): {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Ocorrência não encontrada.",
+                    )
 
-        # Only the admin can update occurrence status
-        if current_user.role != "admin":
-            try:
-                from app.services.audit_log_service import AuditLogService
-                audit_service = AuditLogService(self.ocorrencia_repo.db)
-                audit_service.log(
-                    action="OCORRENCIA_STATUS_UPDATE_FAILURE",
-                    resource="ocorrencia",
-                    resource_id=str(db_ocorrencia.id),
-                    user_id=current_user.id,
-                    user_email=current_user.email,
-                    details=f"Falha ao alterar status da ocorrência '{db_ocorrencia.title}': usuário sem permissão de administrador."
-                )
-            except Exception as e:
-                print(f"Erro ao criar log de auditoria (falha status - sem permissão): {e}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Apenas o administrador pode alterar o estado de uma ocorrência.",
-            )
+                # Only the admin can update occurrence status
+                if current_user.role != "admin":
+                    try:
+                        from app.services.audit_log_service import AuditLogService
+                        audit_service = AuditLogService(self.ocorrencia_repo.db)
+                        audit_service.log(
+                            action="OCORRENCIA_STATUS_UPDATE_FAILURE",
+                            resource="ocorrencia",
+                            resource_id=str(db_ocorrencia.id),
+                            user_id=current_user.id,
+                            user_email=current_user.email,
+                            details=f"Falha ao alterar status da ocorrência '{db_ocorrencia.title}': usuário sem permissão de administrador."
+                        )
+                    except Exception as e:
+                        print(f"Erro ao criar log de auditoria (falha status - sem permissão): {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Apenas o administrador pode alterar o estado de uma ocorrência.",
+                    )
 
-        updated_occ = self.ocorrencia_repo.update_status(db_ocorrencia, status_update.status)
+                updated_occ = self.ocorrencia_repo.update_status(db_ocorrencia, status_update.status)
 
-        # Invalida o cache de ocorrências
-        CacheService.clear_pattern("occurrences:*")
+                # Invalida o cache de ocorrências
+                CacheService.clear_pattern("occurrences:*")
 
-        # Loga na auditoria
-        try:
-            from app.services.audit_log_service import AuditLogService
-            audit_service = AuditLogService(self.ocorrencia_repo.db)
-            audit_service.log(
-                action="OCORRENCIA_STATUS_UPDATE",
-                resource="ocorrencia",
-                resource_id=str(updated_occ.id),
-                user_id=current_user.id,
-                user_email=current_user.email,
-                details=f"Status da ocorrência alterado para '{status_update.status}'."
-            )
-        except Exception as e:
-            print(f"Erro ao criar log de auditoria (atualização de status): {e}")
+                # Loga na auditoria
+                try:
+                    from app.services.audit_log_service import AuditLogService
+                    audit_service = AuditLogService(self.ocorrencia_repo.db)
+                    audit_service.log(
+                        action="OCORRENCIA_STATUS_UPDATE",
+                        resource="ocorrencia",
+                        resource_id=str(updated_occ.id),
+                        user_id=current_user.id,
+                        user_email=current_user.email,
+                        details=f"Status da ocorrência alterado para '{status_update.status}'."
+                    )
+                except Exception as e:
+                    print(f"Erro ao criar log de auditoria (atualização de status): {e}")
 
-        return self._populate_dynamic_fields([updated_occ], current_user)[0]
+                return self._populate_dynamic_fields([updated_occ], current_user)[0]
+            except Exception as exc:
+                span.record_exception(exc)
+                logger.error(f"Erro ao atualizar status da ocorrência {ocorrencia_id}: {exc}")
+                raise
+
 
     def delete_ocorrencia(
         self,
