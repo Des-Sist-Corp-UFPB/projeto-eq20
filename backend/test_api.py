@@ -801,24 +801,53 @@ def test_storage_service_unit(monkeypatch):
 def test_email_service_unit(monkeypatch):
     from app.config.settings import settings
     from app.services.email_service import EmailService
-    import httpx
+    import smtplib
     
-    monkeypatch.setattr(settings, "RESEND_API_KEY", "real_resend_api_key_test")
+    monkeypatch.setattr(settings, "EMAIL_USER", "test@domain.com")
+    monkeypatch.setattr(settings, "EMAIL_PASS", "test_pass")
     
-    # Success response mock
-    mock_resp_success = httpx.Response(200, json={"id": "mock_id"})
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: mock_resp_success)
-    assert EmailService.send_verification_email("email@teste.com", "123456") is True
-    
-    # Failure response mock (fallback mechanism handles it and returns True)
-    mock_resp_fail = httpx.Response(500, text="Internal Error")
-    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: mock_resp_fail)
+    # Mock SMTP_SSL
+    class MockSMTP_SSL:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args, **kwargs):
+            pass
+        def login(self, user, password):
+            pass
+        def sendmail(self, from_addr, to_addrs, msg):
+            pass
+            
+    # Mock SMTP
+    class MockSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args, **kwargs):
+            pass
+        def starttls(self, *args, **kwargs):
+            pass
+        def login(self, user, password):
+            pass
+        def sendmail(self, from_addr, to_addrs, msg):
+            pass
+
+    # Test success path for SSL (port 465)
+    monkeypatch.setattr(settings, "SMTP_PORT", 465)
+    monkeypatch.setattr(smtplib, "SMTP_SSL", MockSMTP_SSL)
     assert EmailService.send_verification_email("email@teste.com", "123456") is True
 
-    # Exception response mock (fallback mechanism handles it and returns True)
-    def raise_connection_err(*args, **kwargs):
-        raise Exception("Connection failed")
-    monkeypatch.setattr(httpx, "post", raise_connection_err)
+    # Test success path for TLS (port 587)
+    monkeypatch.setattr(settings, "SMTP_PORT", 587)
+    monkeypatch.setattr(smtplib, "SMTP", MockSMTP)
+    assert EmailService.send_verification_email("email@teste.com", "123456") is True
+
+    # Test fallback path (exception when connecting)
+    def raise_smtp_err(*args, **kwargs):
+        raise Exception("SMTP Connection Failed")
+    monkeypatch.setattr(smtplib, "SMTP", raise_smtp_err)
     assert EmailService.send_verification_email("email@teste.com", "123456") is True
 
 
