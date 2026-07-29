@@ -7,28 +7,44 @@ import redis
 from app.config.settings import settings
 from app.database.session import SessionLocal
 from app.repositories.audit_log_repository import AuditLogRepository
+from app.telemetry import init_telemetry, get_tracer
+
+init_telemetry()
+tracer = get_tracer("riou_worker")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("riou_worker")
 
 def process_audit_log(payload: dict) -> None:
-    """Processa a persistência de um log de auditoria no banco de dados."""
-    db = SessionLocal()
-    try:
-        repo = AuditLogRepository(db)
-        repo.create(
-            action=payload.get("action"),
-            resource=payload.get("resource"),
-            resource_id=payload.get("resource_id"),
-            user_id=payload.get("user_id"),
-            user_email=payload.get("user_email"),
-            details=payload.get("details"),
-        )
-        logger.info(f"Log de auditoria gravado no BD: {payload.get('action')} - {payload.get('resource')}")
-    except Exception as e:
-        logger.error(f"Erro ao processar log de auditoria no worker: {e}")
-    finally:
-        db.close()
+    """Processa a persistência de um log de auditoria no banco de dados com span de telemetria."""
+    with tracer.start_as_current_span("processar_log_auditoria") as span:
+        action = payload.get("action")
+        resource = payload.get("resource")
+        user_email = payload.get("user_email")
+        
+        span.set_attribute("audit.action", action or "")
+        span.set_attribute("audit.resource", resource or "")
+        if user_email:
+            span.set_attribute("audit.user_email", user_email)
+
+        db = SessionLocal()
+        try:
+            repo = AuditLogRepository(db)
+            repo.create(
+                action=action,
+                resource=resource,
+                resource_id=payload.get("resource_id"),
+                user_id=payload.get("user_id"),
+                user_email=user_email,
+                details=payload.get("details"),
+            )
+            logger.info(f"Log de auditoria gravado no BD: {action} - {resource}")
+        except Exception as e:
+            span.record_exception(e)
+            logger.error(f"Erro ao processar log de auditoria no worker: {e}")
+        finally:
+            db.close()
+
 
 def main():
     logger.info("Iniciando o Worker RIOU...")

@@ -9,10 +9,14 @@ from app.database.seed import init_db_with_retry
 from app.routers.admin import router as admin_router
 from app.routers.auth import router as auth_router
 from app.routers.ocorrencias import router as ocorrencias_router
+from app.telemetry import init_telemetry
+from app.database.session import engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Inicializa a telemetria centralizada do OpenTelemetry
+    init_telemetry(app=app, engine=engine)
     # Inicializa banco de dados com retry na inicialização
     init_db_with_retry()
     # Inicializa o S3/MinIO
@@ -30,6 +34,8 @@ app = FastAPI(
     description="API de Registro Inteligente de Ocorrências Urbanas (RIOU)",
     lifespan=lifespan,
 )
+init_telemetry(app=app, engine=engine)
+
 
 # Configuração de CORS
 app.add_middleware(

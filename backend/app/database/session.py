@@ -15,7 +15,15 @@ if not settings.DATABASE_URL.startswith("sqlite"):
     engine_args["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
 
 engine = create_engine(settings.DATABASE_URL, **engine_args)
+
+try:
+    from app.telemetry import instrument_db_engine
+    instrument_db_engine(engine)
+except Exception:
+    pass
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 
 def get_db() -> Generator[Session, None, None]:

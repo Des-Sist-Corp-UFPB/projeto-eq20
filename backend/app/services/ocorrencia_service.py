@@ -85,33 +85,43 @@ class OcorrenciaService:
         current_user: Optional[UserModel] = None,
     ) -> list[OcorrenciaModel]:
         """Lista ocorrências aplicando filtros, regras de toggle, populando campos dinâmicos e ordenando por urgência se admin."""
-        allow_personal = self.toggle_repo.get_value("allow_personal_occurrences", True)
+        with tracer.start_as_current_span("listar_ocorrencias") as span:
+            if category:
+                span.set_attribute("filtro.categoria", category)
+            if status_filter:
+                span.set_attribute("filtro.status", status_filter)
+            if current_user:
+                span.set_attribute("usuario.id", current_user.id)
 
-        exclude_category = None
-        if not allow_personal:
-            exclude_category = "segurança pública"
+            allow_personal = self.toggle_repo.get_value("allow_personal_occurrences", True)
 
-        cache_key = f"occurrences:list:{category or 'all'}:{status_filter or 'all'}:{exclude_category or 'none'}"
-        cached_data = CacheService.get(cache_key)
-        if cached_data is not None:
-            occurrences = [deserialize_occurrence(d) for d in cached_data]
-        else:
-            occurrences = self.ocorrencia_repo.list_all(
-                category=category,
-                status=status_filter,
-                exclude_category=exclude_category,
-            )
-            serialized = [serialize_occurrence(o) for o in occurrences]
-            CacheService.set(cache_key, serialized, ttl=5)
+            exclude_category = None
+            if not allow_personal:
+                exclude_category = "segurança pública"
 
-        # Preenche os campos dinâmicos para cada ocorrência
-        self._populate_dynamic_fields(occurrences, current_user)
+            cache_key = f"occurrences:list:{category or 'all'}:{status_filter or 'all'}:{exclude_category or 'none'}"
+            cached_data = CacheService.get(cache_key)
+            if cached_data is not None:
+                occurrences = [deserialize_occurrence(d) for d in cached_data]
+            else:
+                occurrences = self.ocorrencia_repo.list_all(
+                    category=category,
+                    status=status_filter,
+                    exclude_category=exclude_category,
+                )
+                serialized = [serialize_occurrence(o) for o in occurrences]
+                CacheService.set(cache_key, serialized, ttl=5)
 
-        # Se o usuário logado for administrador, ordena a lista por urgência decrescente
-        if current_user and current_user.role == "admin":
-            occurrences.sort(key=lambda o: o.urgency_score or 0.0, reverse=True)
+            # Preenche os campos dinâmicos para cada ocorrência
+            self._populate_dynamic_fields(occurrences, current_user)
 
-        return occurrences
+            # Se o usuário logado for administrador, ordena a lista por urgência decrescente
+            if current_user and current_user.role == "admin":
+                occurrences.sort(key=lambda o: o.urgency_score or 0.0, reverse=True)
+
+            span.set_attribute("ocorrencias.quantidade", len(occurrences))
+            return occurrences
+
 
     def _populate_dynamic_fields(
         self,

@@ -13,7 +13,10 @@ from app.services.email_service import EmailService
 from app.schemas.user import UserRegister, TokenResponse
 from app.security.jwt import create_access_token
 from app.security.password import verify_password, get_password_hash
+from app.telemetry import get_tracer
 import random
+
+tracer = get_tracer("app.auth_service")
 
 
 class AuthService:
@@ -25,7 +28,10 @@ class AuthService:
 
     def register(self, user_data: UserRegister) -> dict:
         """Registra uma solicitação pendente de usuário e envia e-mail."""
-        existing = self.user_repo.get_by_email(user_data.email)
+        with tracer.start_as_current_span("cadastrar_usuario") as span:
+            span.set_attribute("usuario.email", user_data.email)
+            existing = self.user_repo.get_by_email(user_data.email)
+
         if existing:
             try:
                 from app.services.audit_log_service import AuditLogService
@@ -188,25 +194,33 @@ class AuthService:
 
     def login(self, email: str, password: str) -> dict:
         """Autentica um usuário e retorna o token JWT."""
-        user = self.user_repo.get_by_email(email)
-        if not user or not verify_password(password, user.hashed_password):
-            try:
-                from app.services.audit_log_service import AuditLogService
-                audit_service = AuditLogService(self.user_repo.db)
-                audit_service.log(
-                    action="LOGIN_FAILURE",
-                    resource="user",
-                    user_id=user.id if user else None,
-                    user_email=email,
-                    details=f"Tentativa de login falhou: e-mail ou senha incorretos para '{email}'."
+        with tracer.start_as_current_span("autenticar_usuario") as span:
+            span.set_attribute("usuario.email", email)
+            user = self.user_repo.get_by_email(email)
+            if not user or not verify_password(password, user.hashed_password):
+                span.set_attribute("auth.sucesso", False)
+                try:
+                    from app.services.audit_log_service import AuditLogService
+                    audit_service = AuditLogService(self.user_repo.db)
+                    audit_service.log(
+                        action="LOGIN_FAILURE",
+                        resource="user",
+                        user_id=user.id if user else None,
+                        user_email=email,
+                        details=f"Tentativa de login falhou: e-mail ou senha incorretos para '{email}'."
+                    )
+                except Exception as e:
+                    print(f"Erro ao criar log de auditoria (falha login): {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="E-mail ou senha incorretos.",
+                    headers={"WWW-Authenticate": "Bearer"},
                 )
-            except Exception as e:
-                print(f"Erro ao criar log de auditoria (falha login): {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="E-mail ou senha incorretos.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+
+            span.set_attribute("auth.sucesso", True)
+            span.set_attribute("usuario.id", user.id)
+            span.set_attribute("usuario.role", user.role)
+
 
         if user.banned_until:
             from datetime import datetime, UTC, timezone

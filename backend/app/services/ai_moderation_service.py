@@ -9,8 +9,11 @@ from datetime import datetime, timezone
 from typing import Tuple
 from openai import OpenAI
 from app.config.settings import settings
+from app.telemetry import get_tracer
 
 logger = logging.getLogger("riou_ai_moderation")
+tracer = get_tracer("app.ai_moderation_service")
+
 
 SYSTEM_PROMPT = """Você é um moderador especializado em relatos urbanos utilizados por órgãos públicos.
 Sua única função é revisar um título e uma descrição enviados por cidadãos.
@@ -79,15 +82,21 @@ class AIModerationService:
 
         Retorna (title, description) moderados, ou os originais intactos se falhar.
         """
-        start_time = time.time()
-        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        with tracer.start_as_current_span("moderar_conteudo_ia") as span:
+            span.set_attribute("moderacao.modelo", settings.AI_MODEL or "default")
+            start_time = time.time()
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        if not settings.AI_API_KEY or not settings.AI_BASE_URL:
-            duration = time.time() - start_time
-            logger.error(
-                f"[{now_str}] Moderation skipped. Reason: Missing settings.AI_API_KEY or settings.AI_BASE_URL. Duration: {duration:.4f}s"
-            )
-            return title, description
+            if not settings.AI_API_KEY or not settings.AI_BASE_URL:
+                duration = time.time() - start_time
+                span.set_attribute("moderacao.executada", False)
+                logger.error(
+                    f"[{now_str}] Moderation skipped. Reason: Missing settings.AI_API_KEY or settings.AI_BASE_URL. Duration: {duration:.4f}s"
+                )
+                return title, description
+
+            span.set_attribute("moderacao.executada", True)
+
 
         try:
             # Camada 7: Higienização pré-envio
