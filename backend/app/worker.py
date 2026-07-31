@@ -9,10 +9,10 @@ from app.database.session import SessionLocal
 from app.repositories.audit_log_repository import AuditLogRepository
 from app.telemetry import init_telemetry, get_tracer
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
 init_telemetry()
 tracer = get_tracer("riou_worker")
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("riou_worker")
 
 def process_audit_log(payload: dict) -> None:

@@ -57,7 +57,7 @@ def init_telemetry(app=None, engine=None) -> None:
     if _initialized:
         if app is not None:
             try:
-                FastAPIInstrumentor.instrument_app(app)
+                FastAPIInstrumentor().instrument_app(app)
             except Exception:
                 pass
         if engine is not None:
@@ -92,7 +92,7 @@ def init_telemetry(app=None, engine=None) -> None:
     # 5. Instrumentar FastAPI app se fornecida
     if app is not None:
         try:
-            FastAPIInstrumentor.instrument_app(app)
+            FastAPIInstrumentor().instrument_app(app)
             logger.info("FastAPI app instrumentado com sucesso.")
         except Exception as e:
             logger.warning(f"Aviso ao instrumentar FastAPI: {e}")
