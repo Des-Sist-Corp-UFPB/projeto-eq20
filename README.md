@@ -334,3 +334,5 @@ AI_API_KEY=sua-chave-api
 AI_BASE_URL=url-do-endpoint-da-api
 AI_MODEL=gpt-4o-mini
 ```
+## Vídeo de apresentação do projeto
+https://youtu.be/R1_iJzD8FvQ?is=eNBisFT346EeEs8x
