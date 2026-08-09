@@ -1,12 +1,8 @@
-# Não copiar para o contexto Docker (reduz tamanho do build)
-.git
-.gitignore
-target/
-*.md
-.idea/
-.vscode/
-*.iml
-.DS_Store
-docker/data/
-dependency-check-report*
-spotbugsXml.xml
+backend/.env
+backend/test.db
+backend/__pycache__/
+backend/.pytest_cache/
+frontend/node_modules/
+frontend/dist/
+.git/
+.github/

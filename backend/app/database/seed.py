@@ -1,0 +1,178 @@
+"""Seed de dados iniciais e lógica de inicialização do banco."""
+
+import time
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
+
+from app.config.settings import settings
+from app.database.session import engine, SessionLocal
+from app.models import Base, UserModel, OcorrenciaModel, FeatureToggleModel
+from app.security.password import get_password_hash
+
+
+def seed_database(db: Session) -> None:
+    """Popula o banco de dados com dados iniciais se necessário."""
+
+    # 1. Seed Feature Toggles
+    default_toggles = {
+        "allow_personal_occurrences": True,
+        "allow_mock_photos": True,
+        "read_only_mode": False,
+    }
+    for k, v in default_toggles.items():
+        if not db.query(FeatureToggleModel).filter(FeatureToggleModel.key == k).first():
+            db.add(FeatureToggleModel(key=k, value=v))
+
+    # 2. Seed Admin and User
+    admin_email = "admin@riou.com"
+    if not db.query(UserModel).filter(UserModel.email == admin_email).first():
+        db.add(UserModel(
+            email=admin_email,
+            hashed_password=get_password_hash("admin123"),
+            role="admin",
+        ))
+
+    user_email = "cidadao@exemplo.com"
+    if not db.query(UserModel).filter(UserModel.email == user_email).first():
+        db.add(UserModel(
+            email=user_email,
+            hashed_password=get_password_hash("senha123"),
+            role="user",
+        ))
+
+    db.commit()
+
+    # 3. Seed Mock Occurrences if empty
+    if db.query(OcorrenciaModel).count() == 0:
+        admin_user = db.query(UserModel).filter(UserModel.email == admin_email).first()
+        admin_id = admin_user.id if admin_user else None
+
+        mock_data = [
+            OcorrenciaModel(
+                title="Cratera profunda na faixa de ônibus",
+                category="infraestrutura",
+                description="Buraco muito fundo na via principal perto da parada de ônibus da reitoria. Carros estão tendo que desviar invadindo a outra pista, com grande risco de colisão.",
+                lat=-7.1378,
+                lng=-34.8475,
+                status="pendente",
+                type="buracos em ruas",
+                photo="https://images.unsplash.com/photo-1515162305285-0293e4767cc2?w=500&auto=format&fit=crop",
+                user_id=admin_id,
+            ),
+            OcorrenciaModel(
+                title="Lâmpadas queimadas no estacionamento do CT",
+                category="iluminação",
+                description="Três postes de iluminação estão completamente apagados no estacionamento lateral do Centro de Tecnologia. Muito escuro à noite, gerando insegurança para os estudantes.",
+                lat=-7.1350,
+                lng=-34.8432,
+                status="progresso",
+                type="iluminação pública quebrada",
+                photo="https://images.unsplash.com/photo-1509024644558-2f56ce76c490?w=500&auto=format&fit=crop",
+                user_id=admin_id,
+            ),
+            OcorrenciaModel(
+                title="Assalto armado no ponto de ônibus",
+                category="segurança pública",
+                description="Dois indivíduos de bicicleta abordaram estudantes que esperavam o ônibus noturno levando celulares e mochilas. Zona perigosa.",
+                lat=-7.1345,
+                lng=-34.8480,
+                status="pendente",
+                type="assaltos",
+                photo="https://images.unsplash.com/photo-1508432296123-c4ec3e17529f?w=500&auto=format&fit=crop",
+                user_id=admin_id,
+            ),
+            OcorrenciaModel(
+                title="Vazamento contínuo de água limpa",
+                category="saneamento",
+                description="Vazamento volumoso na calçada do bloco de biologia. A água está jorrando há mais de 24h e inundando a rampa de acessibilidade.",
+                lat=-7.1331,
+                lng=-34.8445,
+                status="pendente",
+                type="vazamentos",
+                photo="https://images.unsplash.com/photo-1542044896530-05d85be9b11a?w=500&auto=format&fit=crop",
+                user_id=admin_id,
+            ),
+        ]
+        db.add_all(mock_data)
+        db.commit()
+
+
+def create_database_if_not_exists(database_url: str) -> None:
+    """Verifica se o banco de dados PostgreSQL existe e o cria caso necessário."""
+    if not database_url.startswith("postgresql"):
+        return
+
+    url = make_url(database_url)
+    db_name = url.database
+    if not db_name:
+        return
+
+    # Conecta ao banco padrão 'postgres' para verificar/criar o banco desejado
+    default_url = url.set(database="postgres")
+    temp_engine = create_engine(default_url, isolation_level="AUTOCOMMIT")
+    try:
+        with temp_engine.connect() as conn:
+            # Verifica se o banco de dados já existe
+            result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :dbname"), {"dbname": db_name})
+            exists = result.scalar()
+            if not exists:
+                print(f"Banco de dados '{db_name}' não existe. Tentando criar...")
+                conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+                print(f"Banco de dados '{db_name}' criado com sucesso!")
+            else:
+                print(f"Banco de dados '{db_name}' já existe.")
+    except Exception as e:
+        # Se for erro de conexão/indisponibilidade (como conexão recusada), relançamos para que o retry loop trate.
+        # Caso contrário (ex: falta de privilégios), apenas avisamos e deixamos seguir, pois o banco já pode estar criado.
+        err_msg = str(e).lower()
+        if any(msg in err_msg for msg in ["connection refused", "could not connect", "is not responding", "timeout"]):
+            raise e
+        print(f"Aviso ao verificar/criar banco de dados '{db_name}': {e}")
+    finally:
+        temp_engine.dispose()
+
+
+def init_db_with_retry() -> None:
+    """Inicializa o banco de dados com lógica de retry para aguardar o PostgreSQL."""
+    max_retries = 10
+    retry_interval = 2
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"Tentando conectar ao banco de dados... (Tentativa {attempt}/{max_retries})")
+            
+            # Garante que o banco de dados existe antes de tentar a conexão do engine
+            create_database_if_not_exists(settings.DATABASE_URL)
+            
+            connection = engine.connect()
+            connection.close()
+            print("Conexão estabelecida com sucesso!")
+
+            # Create tables
+            Base.metadata.create_all(bind=engine)
+
+            # Executa migrações simples (adiciona coluna se necessário)
+            try:
+                with engine.begin() as conn:
+                    if not str(engine.url).startswith("sqlite"):
+                        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMP WITH TIME ZONE NULL;"))
+                    else:
+                        try:
+                            conn.execute(text("ALTER TABLE users ADD COLUMN banned_until TIMESTAMP NULL;"))
+                        except Exception:
+                            pass  # Coluna já existe no SQLite
+            except Exception as e:
+                print(f"Erro na migração automática do banco de dados: {e}")
+
+            # Seed default values
+            with SessionLocal() as db_session:
+                seed_database(db_session)
+            return
+        except OperationalError as e:
+            if attempt == max_retries:
+                print(f"Erro fatal: Não foi possível conectar ao banco de dados após {max_retries} tentativas.")
+                raise e
+            print(f"Banco de dados indisponível no momento. Aguardando {retry_interval} segundos...")
+            time.sleep(retry_interval)

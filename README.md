@@ -1,343 +1,338 @@
-# Sistema Mercado — Projeto Base DSC/UFPB
+# 🏙️ RIOU - Registro Inteligente de Ocorrências Urbanas
 
-Projeto base (boilerplate) para a disciplina **Desenvolvimento de Sistemas Corporativos**.
+O **RIOU** (Registro Inteligente de Ocorrências Urbanas) é uma plataforma web moderna projetada para permitir que cidadãos reportem e acompanhem ocorrências e problemas em sua cidade (como buracos em vias públicas, vazamentos de água, postes sem luz e incidentes de segurança). O sistema permite que administradores públicos gerenciem essas demandas de forma prioritária e transparente.
 
-**Professor**: Rodrigo Rebouças | **UFPB — Campus IV**
-
----
-
-## Tecnologias
-
-| Camada | Tecnologia |
-|--------|-----------|
-| Backend | Java 21 + Spring Boot 3.4.5 |
-| Templates | Thymeleaf + HTMX 2.0 |
-| Frontend | Bootstrap 5.3 |
-| Banco | PostgreSQL 16 |
-| Migrações | Flyway 11 |
-| Segurança | Spring Security 6 |
-| Build | Maven 3.9 |
-| CI/CD | GitHub Actions |
+A plataforma utiliza um modelo dinâmico de pontuação de urgência baseado na quantidade de pessoas afetadas e no tempo decorrido, garantindo que os problemas mais críticos sejam resolvidos primeiro.
 
 ---
 
-## Guia de Instalação para Alunos
+## 🚀 Principais Funcionalidades
 
-### Passo 1 — Instale o Java 21
+### 👥 Para o Cidadão
+- **Registro de Ocorrências:** Cadastro rápido de problemas com título, categoria, descrição, coordenadas no mapa (latitude e longitude) e fotos explicativas.
+- **Modo Anônimo ou Identificado:** Possibilidade de enviar relatos de forma totalmente anônima ou autenticada.
+- **Apoio a Ocorrências (Afetado):** Usuários cadastrados podem sinalizar que também são afetados por uma determinada ocorrência criada por outro cidadão, aumentando o peso daquele problema.
+- **Interface Responsiva & PWA:** Totalmente adaptado para dispositivos móveis com suporte a Progressive Web App (PWA).
 
-O projeto requer Java 21. Recomendamos o **Eclipse Temurin** (distribuição gratuita da Adoptium).
-
-**Windows / macOS / Linux:**
-1. Acesse https://adoptium.net/temurin/releases/?version=21
-2. Baixe o instalador para seu sistema operacional
-3. Execute o instalador e siga as instruções
-
-**Verificar se está correto:**
-```bash
-java -version
-# Esperado: openjdk version "21.x.x" ...
-```
-
-> **Dica para Windows:** durante a instalação, marque a opção *"Add to PATH"* e *"Set JAVA_HOME"*.
-
----
-
-### Passo 2 — Instale o Maven
-
-O Maven é a ferramenta de build do projeto.
-
-**macOS (com Homebrew):**
-```bash
-brew install maven
-```
-
-**Windows:**
-1. Acesse https://maven.apache.org/download.cgi
-2. Baixe o arquivo `apache-maven-3.x.x-bin.zip`
-3. Extraia para uma pasta (ex.: `C:\maven`)
-4. Adicione `C:\maven\bin` à variável de ambiente `PATH`
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt install maven
-```
-
-**Verificar:**
-```bash
-mvn -version
-# Esperado: Apache Maven 3.x.x
-```
+### 🛠️ Para a Administração Pública
+- **Painel Administrativo Pro:** Visualização detalhada de ocorrências ordenadas dinamicamente pela relevância.
+- **Ordenação por Gravidade (Urgency Score):** O sistema calcula automaticamente a urgência:
+  $$\text{Urgency Score} = \text{Tempo desde a criação (horas)} + (\text{Quantidade de pessoas afetadas} \times 24)$$
+- **Gerenciamento de Status:** Atualização de ocorrências para *Pendente*, *Em Progresso*, *Resolvido* ou *Rejeitado*.
+- **Moderação de Usuários:** Capacidade de banir temporariamente (com tempo de expiração) ou excluir usuários infratores.
+- **Resolução em Lote (Batch Resolve):** Opção rápida para resolver múltiplas ocorrências pendentes de uma só vez.
+- **Logs de Auditoria (Audit Log):** Monitoramento completo e seguro das atividades de administração, como login de usuários, alteração de configurações e banimentos.
+- **Feature Toggles:** Controle em tempo real do comportamento do sistema:
+  - `allow_personal_occurrences`: Habilita ou desabilita a criação de ocorrências de segurança pessoal/pública.
+  - `read_only_mode`: Coloca o sistema inteiro em modo somente leitura.
+  - `allow_mock_photos`: Permite o uso de fotos mockadas caso necessário.
 
 ---
 
-### Passo 3 — Instale o Docker Desktop
+## 🛠️ Stack Tecnológica
 
-O Docker sobe o banco de dados PostgreSQL sem precisar instalar nada manualmente.
+O RIOU foi construído sobre uma arquitetura moderna e dividida em microsserviços/camadas:
 
-1. Acesse https://www.docker.com/products/docker-desktop/
-2. Baixe e instale o Docker Desktop para seu sistema
-3. Abra o Docker Desktop e aguarde ele inicializar (ícone na barra de tarefas)
-
-**Verificar:**
-```bash
-docker -v
-# Esperado: Docker version 27.x.x ...
-```
-
-> **Importante:** o Docker Desktop deve estar **em execução** sempre que você for rodar o projeto.
+* **Frontend:** [Vue 3](https://vuejs.org/) (Single Page Application com Composition API e `<script setup>`), construído com [Vite](https://vitejs.dev/) e suporte a **PWA**.
+* **Backend:** [FastAPI](https://fastapi.tiangolo.com/) (Python 3.13) robusto, performático, assíncrono e autodocumentado com Swagger/OpenAPI.
+* **Banco de Dados:** [PostgreSQL 16](https://www.postgresql.org/) para persistência relacional.
+* **Armazenamento de Fotos (Object Storage):** Integração com **AWS S3 / MinIO** para upload de fotos das ocorrências.
+* **E-mails de Verificação:** Integração com a API do **Resend** para envio seguro de códigos de verificação no cadastro.
+* **Containerização:** [Docker](https://www.docker.com/) e [Docker Compose](https://docs.docker.com/compose/) para orquestração fácil de ambientes de desenvolvimento e produção.
 
 ---
 
-### Passo 4 — Clone o repositório
+## 📁 Estrutura de Diretórios
 
-```bash
-git clone <URL-DO-REPOSITÓRIO>
-cd base_projeto
-```
-
-> Substitua `<URL-DO-REPOSITÓRIO>` pela URL fornecida pelo professor.
-
----
-
-### Passo 5 — Execute o projeto
-
-Você tem duas opções. **Recomendamos a Opção A para a primeira execução.**
-
-#### Opção A: Tudo com Docker (mais simples)
-
-Um único comando sobe o banco, a aplicação e o Adminer (interface web do banco):
-
-```bash
-docker compose -f docker/docker-compose.dev.yml up --build
-```
-
-Aguarde as mensagens de inicialização. Quando aparecer algo como:
-```
-Started MercadoApplication in X.XXX seconds
-```
-...a aplicação está pronta.
-
-#### Opção B: Banco no Docker + aplicação local (recomendado para desenvolvimento)
-
-Esta opção permite editar o código e ver as mudanças mais rápido:
-
-```bash
-# Terminal 1 — sobe o banco de dados
-docker compose -f docker/docker-compose.dev.yml up postgres adminer
-
-# Terminal 2 — roda a aplicação (em outro terminal, na mesma pasta)
-mvn spring-boot:run
+```text
+projeto-eq20/
+├── backend/                  # Código fonte do servidor FastAPI
+│   ├── app/
+│   │   ├── config/           # Configurações centralizadas (settings.py)
+│   │   ├── database/         # Sessão do SQLAlchemy, seed e migração do BD
+│   │   ├── models/           # Modelos de dados (User, Ocorrencia, AuditLog, etc.)
+│   │   ├── repositories/     # Abstração de persistência/acesso ao banco
+│   │   ├── routers/          # Endpoints da API (/auth, /ocorrencias, /admin)
+│   │   ├── schemas/          # Schemas de validação de dados do Pydantic
+│   │   ├── security/         # Criptografia, hashes e dependências de autenticação
+│   │   └── services/         # Regras de negócio e integrações (S3, Resend)
+│   ├── main.py               # Ponto de entrada / proxy imports
+│   ├── requirements.txt      # Dependências Python
+│   └── test_api.py           # Suíte de testes automatizados com pytest
+│
+├── frontend/                 # Aplicação web Vue.js
+│   ├── src/
+│   │   ├── assets/           # Arquivos estáticos (imagens, logotipos, etc.)
+│   │   ├── components/       # Componentes Vue reutilizáveis
+│   │   ├── App.vue           # Interface e lógica principal da SPA
+│   │   ├── main.js           # Inicialização da aplicação
+│   │   └── style.css         # Design System e estilização vanilla CSS
+│   ├── package.json          # Script de builds e dependências do Node.js
+│   └── vite.config.js        # Configuração do empacotador Vite
+│
+├── Dockerfile                # Build multi-stage unificado (Vue + FastAPI)
+├── docker-compose.yml        # Setup do ambiente local completo (App + DB)
+└── docker-compose.prod.yml   # Setup voltado para produção/homologação
 ```
 
 ---
 
-### Passo 6 — Acesse no browser
+## ⚙️ Variáveis de Ambiente
 
-| O que | Endereço |
-|-------|----------|
-| Aplicação | http://localhost:8080 |
-| Login | usuário: `admin` / senha: `admin123` |
-| Adminer (banco) | http://localhost:8888 |
-| Health check | http://localhost:8080/actuator/health |
+Crie um arquivo `.env` na raiz do diretório `backend` (ou passe via docker-compose) para configurar a aplicação:
 
----
+```env
+# URL de Conexão com o PostgreSQL
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/riou
 
-### Parando o projeto
+# Chave secreta para assinatura dos tokens JWT
+SECRET_KEY=sua_chave_secreta_aqui
 
-```bash
-# Parar a aplicação: Ctrl+C no terminal onde está rodando
+# Credenciais e Endpoints do Object Storage (S3 / MinIO)
+S3_ENDPOINT_URL=https://s3.dsc.rodrigor.com
+S3_PUBLIC_ENDPOINT=https://s3.dsc.rodrigor.com
+S3_BUCKET=eq20
+S3_ACCESS_KEY=eq20
+S3_SECRET_KEY=sua_secret_key_s3
+S3_REGION=us-east-1
 
-# Parar os containers Docker:
-docker compose -f docker/docker-compose.dev.yml down
+# Credenciais do Resend para envio de e-mails
+RESEND_API_KEY=re_sua_api_key_do_resend
+RESEND_FROM_EMAIL=verificacao@riou <onboarding@resend.dev>
 ```
 
 ---
 
-## Solução de Problemas Comuns
+## 🚀 Como Executar o Projeto
 
-### "Port 8080 already in use"
-Outra aplicação está usando a porta 8080. Para liberar:
-```bash
-# macOS / Linux
-lsof -ti:8080 | xargs kill
+### Método 1: Utilizando Docker Compose (Recomendado)
 
-# Windows (PowerShell)
-netstat -ano | findstr :8080
-# Anote o PID da última coluna e execute:
-taskkill /PID <número-do-pid> /F
+O Docker Compose automatiza toda a configuração, gerando o banco de dados PostgreSQL e construindo o backend e frontend (multi-stage build) de uma só vez.
+
+1. Garanta que o Docker e Docker Compose estão instalados e rodando.
+2. Na raiz do projeto, execute o comando:
+   ```bash
+   docker compose up --build
+   ```
+3. O sistema estará disponível em:
+   - **Frontend & Backend unificados:** [http://localhost:8120](http://localhost:8120)
+   - **Documentação Interativa da API (Swagger):** [http://localhost:8120/docs](http://localhost:8120/docs)
+
+---
+
+### Método 2: Inicialização Manual (Desenvolvimento Local)
+
+Para fins de desenvolvimento e hot-reloading rápido, você pode rodar o backend e o frontend separadamente em terminais distintos.
+
+#### 1. Configurando o Backend (FastAPI)
+1. Navegue até a pasta `backend`:
+   ```bash
+   cd backend
+   ```
+2. Crie e ative um ambiente virtual:
+   * **Windows (PowerShell):**
+     ```powershell
+     python -m venv venv
+     .\venv\Scripts\Activate.ps1
+     ```
+   * **Linux/macOS:**
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+3. Instale as dependências requeridas:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Execute o servidor de desenvolvimento:
+   ```bash
+   uvicorn main:app --reload --port 8080
+   ```
+   *O backend estará rodando em [http://localhost:8080](http://localhost:8080).*
+
+#### 2. Configurando o Frontend (Vue 3 + Vite)
+1. Abra outro terminal na pasta `frontend`:
+   ```bash
+   cd frontend
+   ```
+2. Instale os pacotes npm:
+   ```bash
+   npm install
+   ```
+3. Execute o servidor do Vite:
+   ```bash
+   npm run dev
+   ```
+   *O frontend estará rodando em [http://localhost:5173](http://localhost:5173).*
+
+---
+
+## 🧪 Rodando os Testes
+
+Os testes cobrem a lógica de negócios, endpoints, simulação de uploads de arquivos, banimentos, logs de auditoria e regras de urgência.
+
+Para rodar a suíte completa de testes no backend:
+1. Certifique-se de que está na pasta `backend` e com o ambiente virtual ativo.
+2. Execute o comando:
+   ```bash
+   pytest -v
+   ```
+
+### 📊 Cobertura de Testes (≥ 85%)
+
+O projeto possui **90%** de cobertura de linhas nos testes automatizados do backend.
+
+O relatório de cobertura completo gerado em HTML está localizado em:
+* [cobertura/backend/index.html](cobertura/backend/index.html)
+
+---
+
+## 🔑 Credenciais Padrão (Seed de Banco de Dados)
+
+Ao inicializar o banco de dados pela primeira vez, ele é automaticamente populado com as seguintes credenciais padrão para facilitar a experimentação:
+
+| Perfil | E-mail | Senha |
+| :--- | :--- | :--- |
+| **Administrador** | `admin@riou.com` | `admin123` |
+| **Cidadão Comum** | `cidadao@exemplo.com` | `senha123` |
+
+Além disso, 4 ocorrências mockadas em diferentes áreas (infraestrutura, iluminação, segurança e saneamento) serão criadas para que o mapa e a listagem administrativa tenham dados visuais de teste desde o primeiro login.
+
+---
+
+## 📝 Log de Auditoria
+
+O sistema possui um módulo completo de auditoria para registrar ações críticas dos usuários, com foco especial em ações administrativas e de segurança.
+
+### O que é auditado
+São auditadas as seguintes ações do sistema:
+* **Autenticação e Cadastro**:
+  * `REGISTER`: Cadastro e ativação de novos cidadãos.
+  * `LOGIN`: Login de usuários no sistema.
+  * `PASSWORD_FORGOT`: Solicitação de recuperação de senha.
+  * `PASSWORD_RESET`: Redefinição de senha utilizando o token.
+* **Ações Administrativas**:
+  * `ADMIN_TOGGLE_UPDATE`: Alteração de estado de Feature Toggles (ex: modo somente leitura).
+  * `ADMIN_BATCH_RESOLVE`: Resolução de ocorrências em lote.
+  * `ADMIN_DELETE_USER`: Exclusão de usuários da plataforma.
+  * `ADMIN_BAN_USER` / `ADMIN_UNBAN_USER`: Banimento temporário e desbanimento de usuários.
+
+### Onde fica armazenado
+Os logs são persistidos no banco de dados relacional (PostgreSQL) na tabela **`audit_logs`**.
+Os principais campos da tabela são:
+* `id` (Integer, Chave Primária): Identificador único do log.
+* `timestamp` (DateTime com Timezone): Data e hora em que a ação ocorreu (UTC).
+* `user_id` (Integer, FK para `users.id`): Identificador do usuário que realizou a ação (com `ondelete="SET NULL"` para manter o histórico caso o usuário seja excluído).
+* `user_email` (String): E-mail do usuário no momento da ação (redundância útil para auditorias históricas).
+* `action` (String): O nome da ação executada (ex: `LOGIN`, `ADMIN_BAN_USER`).
+* `resource` (String): O recurso afetado (ex: `user`, `feature_toggle`, `ocorrencia`).
+* `resource_id` (String): O identificador do recurso afetado.
+* `details` (Text): Detalhes adicionais legíveis por humanos sobre a ação.
+
+### Como foi implementado
+A auditoria foi implementada através de um **serviço dedicado** (`AuditLogService`), que utiliza o padrão de **Repositório** (`AuditLogRepository`) para persistir os registros de auditoria de forma isolada do fluxo principal das operações de negócio. Quando as ações críticas de negócio são disparadas no `AuthService` ou no `AdminService`, esses serviços invocam explicitamente o `AuditLogService` para registrar a entrada correspondente.
+
+### Classes e arquivos participantes
+* **Modelo do Banco de Dados**: [backend/app/models/audit_log.py](backend/app/models/audit_log.py)
+* **Abstração de Acesso a Dados (Repositório)**: [backend/app/repositories/audit_log_repository.py](backend/app/repositories/audit_log_repository.py)
+* **Serviço de Auditoria**: [backend/app/services/audit_log_service.py](backend/app/services/audit_log_service.py)
+* **Pontos de Invocação**:
+  * [backend/app/services/auth_service.py](backend/app/services/auth_service.py) (Ações de autenticação e recuperação/reset de senha)
+  * [backend/app/services/admin_service.py](backend/app/services/admin_service.py) (Ações administrativas, controle de toggles, banimentos e exclusões)
+* **Schemas Pydantic**: [backend/app/schemas/audit_log.py](backend/app/schemas/audit_log.py)
+* **Rotas da API**: [backend/app/routers/admin.py](backend/app/routers/admin.py) (Endpoint `/api/admin/audit-logs` para visualização dos logs pelo administrador)
+
+---
+
+## 🔌 Integração com Serviço Externo
+
+O sistema integra-se com dois serviços externos fundamentais para o armazenamento de mídias e para a verificação de e-mails.
+
+### 1. Object Storage (AWS S3 / MinIO)
+* **Para que é usado**: Armazenamento de fotos enviadas pelos cidadãos no momento do cadastro de uma ocorrência urbana.
+* **Classes e arquivos participantes**:
+  * [backend/app/services/storage_service.py](backend/app/services/storage_service.py): Contém as funções de inicialização do cliente S3, verificação/criação automática do bucket e upload do arquivo para o S3.
+  * [backend/app/routers/ocorrencias.py](backend/app/routers/ocorrencias.py): Endpoint `/api/ocorrencias/upload` que recebe a imagem e delega o upload ao `storage_service.py`.
+* **Como é configurado**:
+  Através das seguintes variáveis de ambiente (localizadas no arquivo `.env` do backend):
+  * `S3_ENDPOINT_URL`: URL do endpoint do serviço S3 (ex: `https://s3.dsc.rodrigor.com` em desenvolvimento local, ou `http://minio:9000` via Docker).
+  * `S3_PUBLIC_ENDPOINT`: URL pública para acesso direto e visualização das imagens via navegador.
+  * `S3_BUCKET`: Nome do bucket onde as imagens são salvas.
+  * `S3_ACCESS_KEY`: Chave de acesso do S3.
+  * `S3_SECRET_KEY`: Chave secreta de autenticação do S3.
+  * `S3_REGION`: Região da AWS (padrão `us-east-1`).
+
+### 2. Resend (Envio de E-mails)
+* **Para que é usado**: Envio seguro de e-mails com códigos de verificação de uso único no cadastro de cidadãos, garantindo a autenticidade e validade dos endereços de e-mail informados.
+* **Classes e arquivos participantes**:
+  * [backend/app/services/email_service.py](backend/app/services/email_service.py): Implementa a chamada HTTP à API REST da Resend (`https://api.resend.com/emails`) utilizando a biblioteca `httpx` de forma síncrona.
+  * [backend/app/services/auth_service.py](backend/app/services/auth_service.py): Invoca a geração do código pendente e aciona o envio de e-mail ao registrar o usuário.
+* **Como é configurado**:
+  Através das seguintes variáveis de ambiente:
+  * `RESEND_API_KEY`: Chave de API do serviço Resend (`re_...`). Possui mecanismo de fallback automático: se a chave estiver vazia ou iniciar com `mock_`, o e-mail não é enviado e o código de verificação é apenas impresso nos logs do Docker para desenvolvimento/depuração.
+  * `RESEND_FROM_EMAIL`: O endereço de remetente configurado e autorizado para envio no Resend (ex: `verificacao@riou <onboarding@resend.dev>`).
+
+---
+
+## 📈 Testes de Carga e Performance
+
+Realizamos testes de carga automatizados para avaliar a resiliência e o tempo de resposta da API do RIOU sob estresse.
+
+### Cenário de Teste
+O teste simula o comportamento real do usuário utilizando o **k6** e foi executado com as seguintes características:
+* **Usuários Virtuais Simultâneos (VUS)**: 10 VUs ativos.
+* **Duração**: 1 minuto (com subida gradual de 15s, estabilização de 30s e desaquecimento de 15s).
+* **Rotas Testadas**:
+  1. `GET /ping` (Healthcheck público)
+  2. `GET /api/ocorrencias` (Leitura da listagem pública)
+  3. `POST /api/auth/login` (Autenticação do usuário e geração de token JWT)
+  4. `GET /api/auth/me` (Consulta de perfil com header `Authorization: Bearer <token>`)
+  5. `POST /api/ocorrencias` (Cadastro de nova ocorrência com dados dinâmicos e token JWT)
+
+### Resultados Obtidos
+* **Requisições Totais**: 1.745 requisições efetuadas (taxa de ~28,7 req/s).
+* **Taxa de Erro (`http_req_failed`)**: **0,00%** (0 falhas de 1745 requisições).
+* **Tempo de Resposta (`http_req_duration`)**:
+  * **Média**: 64,86 ms
+  * **Mediana**: 14,67 ms
+  * **95º Percentil (p95)**: **283,84 ms** (Meta: < 500 ms)
+* **Checks com Sucesso**: 100,00% (3141 checks bem-sucedidos nas validações de status 200/201, estrutura do JSON e dados criados).
+
+### Gargalos Identificados e Oportunidades de Melhoria
+1. **Banco de Dados (Escrita Concorrente)**: A criação concorrente de ocorrências e logs de auditoria no banco PostgreSQL pode ser um gargalo em volumes maiores de carga. Aumentar a capacidade de conexões no pool do SQLAlchemy (`DATABASE_POOL_SIZE` no `.env`) ou implementar uma fila de mensageria assíncrona (como RabbitMQ ou Celery) para processar os logs de auditoria em segundo plano evitaria o bloqueio de requisições de escrita.
+2. **Tempo de Resposta em Redes Móveis**: The `p(95)` está em 283 ms rodando localmente (sem latência de rede externa). Em redes móveis de cidadãos (3G/4G/5G), esse tempo pode aumentar consideravelmente. Recomenda-se adicionar caching de requisições de listagem pública (`GET /api/ocorrencias`) utilizando Redis ou HTTP Cache-Control, visto que a listagem de ocorrências é lida com altíssima frequência em comparação à criação.
+
+---
+
+## Moderação Inteligente de Ocorrências (IA)
+
+O RIOU possui uma camada inteligente de moderação baseada em Inteligência Artificial (`gpt-4o-mini`) que atua durante o cadastro de novas ocorrências. Esta funcionalidade higieniza, corrige e padroniza os relatos dos cidadãos para garantir uma linguagem formal, clara e apropriada para órgãos de administração pública, antes de armazená-los no banco de dados.
+
+### Como Funciona
+
+1. **Envio do Relato**: O cidadão envia o título e a descrição da ocorrência.
+2. **Higienização de Entrada**: O sistema remove caracteres de controle Unicode invisíveis, normaliza espaços extras e quebras de linha múltiplas, e limita o tamanho máximo dos textos.
+3. **Moderação por IA**: Os textos limpos são enviados ao modelo de linguagem utilizando o SDK oficial da OpenAI.
+   * O modelo analisa se há palavrões, ofensas, linguagem imprópria, repetições, ou relatos sem sentido (ex: "teste", "aaaa", "kkkk").
+   * Se houver inadequações, o texto é reescrito. Se já estiver adequado, é apenas aprimorado.
+   * **Resiliência (Fallback)**: Em caso de falhas de rede, problemas com a API da IA ou retorno de formato inesperado, o sistema registra logs de auditoria detalhados (sem vazar chaves ou endpoints confidenciais) e salva os **textos originais** da ocorrência, garantindo que o fluxo de cadastro nunca seja bloqueado.
+
+### Camadas de Segurança e Guardrails (LLM Security)
+
+Para mitigar riscos de segurança, como ataques de *Prompt Injection* e manipulação comportamental da IA, foram implementadas as seguintes camadas de proteção:
+* **Mensagens Separadas (Camada 1 & 2)**: As instruções de sistema (`SYSTEM_PROMPT`) e as entradas do usuário são mantidas estritamente separadas. A entrada do usuário é formatada em JSON e tratada apenas como dados brutos de entrada, nunca como instruções acionáveis.
+* **Blindagem de Prompt (Camada 3)**: O prompt de sistema instrui explicitamente a IA a ignorar comandos de jailbreak, pedidos de representação de papéis ("Ignore as instruções anteriores", "Atue como..."), explicações ou conversas.
+* **Formatos de Saída Estritos (Camada 4, 5 & 6)**: A IA é configurada para retornar exclusivamente respostas no formato JSON estruturado com os campos `title` e `description`. Qualquer outra estrutura, tipo incorreto (ex: valores não-string) ou tamanho excessivo é sumariamente descartado no backend, acionando o fallback.
+* **Configurações do Modelo**: Temperatura configurada em `0` para máxima previsibilidade e limite de `max_tokens=200` para otimizar custo e evitar geração de conteúdos indesejados.
+
+### Variáveis de Ambiente Necessárias
+
+Para ativar a funcionalidade localmente ou em produção, as seguintes variáveis devem ser adicionadas ao arquivo `.env`:
+
+```env
+AI_API_KEY=sua-chave-api
+AI_BASE_URL=url-do-endpoint-da-api
+AI_MODEL=gpt-4o-mini
 ```
-
-### "Cannot connect to the Docker daemon"
-O Docker Desktop não está em execução. Abra o aplicativo Docker Desktop e aguarde inicializar.
-
-### "Connection refused" ao banco de dados
-O container do PostgreSQL ainda não subiu. Aguarde alguns segundos e tente novamente. Você pode verificar com:
-```bash
-docker compose -f docker/docker-compose.dev.yml ps
-# O container "mercado-postgres-dev" deve estar com status "healthy"
-```
-
-### Erro de compilação Java
-Verifique se o Java 21 está sendo usado pelo Maven:
-```bash
-mvn -version
-# A linha "Java version:" deve mostrar 21.x.x
-```
-Se mostrar outra versão, configure a variável `JAVA_HOME` apontando para o Java 21.
-
-### Flyway: "Found non-empty schema(s) with no schema history table"
-O banco existe mas foi criado sem as migrations. Apague os dados e recomece:
-```bash
-docker compose -f docker/docker-compose.dev.yml down -v
-docker compose -f docker/docker-compose.dev.yml up postgres
-```
-
----
-
-## Testes
-
-```bash
-# Rodar todos os testes (requer Docker em execução — usa Testcontainers)
-mvn test
-
-# Rodar com relatório de cobertura (JaCoCo)
-mvn verify
-# Relatório: abra o arquivo target/site/jacoco/index.html no browser
-```
-
----
-
-## Análise de Segurança (SAST)
-
-```bash
-# SpotBugs + FindSecBugs + OWASP Dependency Check
-mvn verify -Psecurity
-
-# Trivy: scan de vulnerabilidades no filesystem
-docker compose -f docker/docker-compose.dev.yml --profile scan up trivy
-
-# Verificar dependências desatualizadas
-mvn versions:display-dependency-updates -Pversions
-```
-
-Veja `docs/SECURITY.md` para detalhes.
-
----
-
-## Configurando o Deploy Automático (GitHub Actions)
-
-O projeto inclui um pipeline de CI/CD em `.github/workflows/deploy.yml` que:
-- roda os testes automaticamente a cada `push` na branch `main`
-- executa análise de segurança (SAST) no código e nas dependências
-- constrói a imagem Docker de produção e faz o deploy no servidor da disciplina
-
-Para ativar o deploy, você precisa configurar **dois secrets** e uma **variável** no seu repositório GitHub.
-
----
-
-### Secret 1 — Chave SSH de deploy (`SSH_DEPLOY_KEY`)
-
-O servidor da disciplina (`dsc.rodrigor.com`) já está preparado para receber deploys.
-A chave SSH que autoriza o acesso está disponível na página da disciplina:
-
-**Acesse: https://gd.dsc.rodrigor.com** e copie a chave SSH privada disponibilizada pelo professor.
-
-Depois, adicione no seu repositório:
-
-1. No GitHub, acesse seu repositório → **Settings**
-2. No menu lateral: **Secrets and variables → Actions**
-3. Clique em **New repository secret**
-4. Nome: `SSH_DEPLOY_KEY`
-5. Valor: cole a chave privada copiada do portal (o texto completo, incluindo as linhas `-----BEGIN...` e `-----END...`)
-6. Clique em **Add secret**
-
----
-
-### Secret 2 — Chave da API do NVD (`NVD_API_KEY`)
-
-#### O que é o NVD?
-
-**NVD** significa *National Vulnerability Database* — é o banco de dados oficial do governo americano (NIST) que cataloga todas as vulnerabilidades de segurança conhecidas em softwares. Cada vulnerabilidade recebe um identificador chamado **CVE** (ex.: CVE-2024-12345) e uma nota de gravidade chamada **CVSS** (de 0 a 10).
-
-O **OWASP Dependency Check** (uma das ferramentas de segurança do projeto) consulta esse banco para verificar se as bibliotecas que o seu projeto usa possuem vulnerabilidades conhecidas.
-
-#### Por que preciso de uma chave?
-
-Sem a chave, o download do banco de dados NVD é muito lento (pode levar 20+ minutos no CI/CD, ou até falhar por timeout). Com a chave gratuita, o download é feito via API e leva menos de 2 minutos.
-
-#### Como obter (gratuito, leva ~1 minuto)
-
-1. Acesse https://nvd.nist.gov/developers/request-an-api-key
-2. Preencha seu e-mail institucional (use o e-mail da UFPB se possível)
-3. Marque a caixa de uso não-comercial
-4. Clique em **Submit**
-5. Acesse seu e-mail — você receberá a chave em segundos
-
-#### Adicionando ao repositório
-
-1. No GitHub: **Settings → Secrets and variables → Actions**
-2. Clique em **New repository secret**
-3. Nome: `NVD_API_KEY`
-4. Valor: cole a chave recebida por e-mail
-5. Clique em **Add secret**
-
-> **Sem a chave ainda?** O pipeline funciona mesmo sem ela, mas o OWASP Dependency Check
-> pode demorar muito ou falhar por timeout. Configure assim que possível.
-
----
-
-### Variável — Nome da imagem Docker (`APP_IMAGE`)
-
-O pipeline publica a imagem Docker no GitHub Container Registry (GHCR) com o nome do seu repositório. Você não precisa configurar isso manualmente — o workflow usa `${{ github.repository }}` para montar o nome automaticamente.
-
-Mas o arquivo `.env` no servidor precisa saber qual imagem usar. O script de deploy atualiza isso automaticamente na primeira execução.
-
----
-
-### Verificando se o deploy funcionou
-
-Após configurar os secrets e fazer um `push` na branch `main`:
-
-1. No GitHub, clique na aba **Actions**
-2. Você verá o workflow **"Build & Deploy"** em execução
-3. Ele tem 3 etapas: **Testes e SAST → Build e push → Deploy em produção**
-4. Se tudo der certo, a aplicação estará disponível em `https://dsc.rodrigor.com`
-
-Se alguma etapa falhar, clique nela para ver os logs detalhados.
-
----
-
-## Estrutura do Projeto
-
-```
-base_projeto/
-├── .github/workflows/
-│   └── deploy.yml           # Pipeline CI/CD (GitHub Actions)
-├── src/main/java/br/ufpb/dsc/mercado/
-│   ├── config/              # Configurações (Security, GlobalModelAttributes, etc.)
-│   ├── controller/          # Controllers HTTP + HTMX
-│   ├── domain/              # Entidades JPA
-│   ├── dto/                 # Data Transfer Objects (Records)
-│   ├── exception/           # Exceções de domínio
-│   ├── repository/          # Interfaces Spring Data JPA
-│   └── service/             # Lógica de negócio
-├── src/main/resources/
-│   ├── db/migration/        # Scripts Flyway (V1__, V2__, ...)
-│   └── templates/           # Templates Thymeleaf
-├── docker/                  # Dockerfiles + docker-compose
-├── docs/                    # Documentação técnica
-├── CLAUDE.md                # Memória para Claude Code
-└── pom.xml
-```
-
----
-
-## Para Alunos: Adaptando o Boilerplate
-
-1. **Renomear** a entidade `Produto` para sua entidade principal
-2. **Criar migration** Flyway com a nova estrutura da tabela (`src/main/resources/db/migration/V2__...sql`)
-3. **Atualizar** Repository, Service, Controller e templates seguindo os mesmos padrões
-4. **Manter** a estrutura de pacotes e convenções (ver `docs/CONVENTIONS.md`)
-5. **Nunca editar** migrations já aplicadas — sempre criar uma nova (`V3__`, `V4__`, ...)
-
-> Dúvidas? Consulte a documentação em `docs/` ou o professor.
+## Vídeo de apresentação do projeto
+https://youtu.be/R1_iJzD8FvQ?is=eNBisFT346EeEs8x

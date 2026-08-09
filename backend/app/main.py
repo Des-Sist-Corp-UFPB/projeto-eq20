@@ -1,0 +1,96 @@
+"""Ponto de entrada principal da aplicação FastAPI modularizada."""
+
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.database.seed import init_db_with_retry
+from app.routers.admin import router as admin_router
+from app.routers.auth import router as auth_router
+from app.routers.ocorrencias import router as ocorrencias_router
+from app.telemetry import init_telemetry
+from app.database.session import engine
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Inicializa a telemetria centralizada do OpenTelemetry
+    init_telemetry(app=app, engine=engine)
+    # Inicializa banco de dados com retry na inicialização
+    init_db_with_retry()
+    # Inicializa o S3/MinIO
+    try:
+        from app.services.storage_service import init_s3
+        init_s3()
+    except Exception as e:
+        print(f"Erro ao inicializar S3 no startup: {e}")
+    yield
+
+
+
+app = FastAPI(
+    title="RIOU API Pro",
+    description="API de Registro Inteligente de Ocorrências Urbanas (RIOU)",
+    lifespan=lifespan,
+)
+init_telemetry(app=app, engine=engine)
+
+
+# Configuração de CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Endpoint público de health check
+from datetime import datetime, timezone
+from fastapi import Depends, HTTPException
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from app.database.session import get_db
+
+@app.get("/ping")
+def ping(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Database connection failed")
+    return {
+        "status": "ok",
+        "service": "eq20",
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    }
+
+# Inclusão dos roteadores da API
+app.include_router(auth_router)
+app.include_router(ocorrencias_router)
+app.include_router(admin_router)
+
+# Configuração para servir o frontend estático compilado (SPA) se existir
+import os
+from fastapi.responses import FileResponse
+
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static")
+if os.path.exists(static_dir):
+    @app.get("/{catchall:path}")
+    async def serve_spa(catchall: str):
+        if not catchall:
+            catchall = "index.html"
+            
+        # Proteção contra path traversal
+        resolved_path = os.path.abspath(os.path.join(static_dir, catchall))
+        if not resolved_path.startswith(os.path.abspath(static_dir)):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Forbidden")
+            
+        if os.path.isfile(resolved_path):
+            return FileResponse(resolved_path)
+            
+        index_file = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+
